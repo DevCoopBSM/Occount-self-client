@@ -1,14 +1,9 @@
 import 'dart:async';
 
-import 'package:counter/provider/bottom_navigation_provider.dart';
-import 'package:counter/provider/count_provider.dart';
 import 'package:counter/ui/_constant/util/app_router.dart';
 import 'package:counter/ui/barcode/barcode_page.dart';
-import 'package:counter/ui/home/home.dart';
-// import 'package:counter/ui/onboarding/onboard_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:provider/provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: '부산소프트웨어마이스터고등학교 아리소리 셀프계산대.',
+      title: '부산소프트웨어마이스터고등학교 매점 셀프계산대.',
       debugShowCheckedModeBanner: false,
       getPages: appRouter,
       initialRoute: '/',

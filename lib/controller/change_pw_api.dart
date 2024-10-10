@@ -36,6 +36,12 @@ Future<void> changePw(
     );
 
     if (response.statusCode == 200) {
+      Map<String, dynamic> responseBody =
+          json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+
+      String message = responseBody['message'];
+      final String redirectUrl = responseBody['redirectUrl'] ?? '/';
+
       // 성공 팝업창 띄우기
       showDialog(
         context: context,
@@ -45,15 +51,15 @@ Future<void> changePw(
               '비밀번호 변경 성공',
               style: DevCoopTextStyle.bold_30,
             ),
-            content: const Text(
-              '비밀번호가 변경되었습니다.',
+            content: Text(
+              message,
               style: DevCoopTextStyle.bold_30,
             ),
             actions: <Widget>[
               mainTextButton(
                 text: "확인",
                 onTap: () {
-                  Get.offAndToNamed("/");
+                  Get.offAndToNamed(redirectUrl);
                 },
               ),
             ],

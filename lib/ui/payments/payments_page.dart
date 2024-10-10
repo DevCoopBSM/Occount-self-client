@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'package:counter/dto/event_item_response_dto.dart';
-import 'package:counter/controller/get_event_list.dart';
+
 import 'package:counter/controller/payments_api.dart';
+import 'package:counter/dto/event_item_response_dto.dart';
+import 'package:counter/dto/non_barcode_item.dart';
 import 'package:counter/secure/db.dart';
 import 'package:counter/ui/_constant/theme/devcoop_colors.dart';
 import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
@@ -11,8 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 import '../../dto/item_response_dto.dart';
 import '../_constant/component/button.dart';
@@ -30,12 +31,16 @@ class _PaymentsPageState extends State<PaymentsPage> {
   int savedPoint = 0;
   int totalPrice = 0;
   String savedCodeNumber = '';
-  String eventStatus = '';
   List<ItemResponseDto> itemResponses = [];
   List<EventItemResponseDto> eventItemList = [];
   final dbSecure = DbSecure();
   String token = '';
   bool isButtonDisabled = false;
+  Color dropdownColor = DevCoopColors.primary;
+  String? selectedDropdown = "미등록상품";
+  List<NonBarcodeItem> futureItems = [];
+  bool isLoading = false;
+  bool isDropDownClick = false;
 
   TextEditingController barcodeController = TextEditingController();
   FocusNode barcodeFocusNode = FocusNode();
@@ -43,25 +48,58 @@ class _PaymentsPageState extends State<PaymentsPage> {
   @override
   void initState() {
     super.initState();
+    fetchNonBarcodeItems();
 
-    loadUserData();
+    setState(() {
+      loadUserData();
+    });
   }
 
-  Future<void> loadUserData() async {
+  void loadUserData() async {
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
+      SharedPreferences sharedPreferences =
+          await SharedPreferences.getInstance();
       setState(() {
-        savedPoint = prefs.getInt('userPoint') ?? 0;
-        savedStudentName = prefs.getString('userName') ?? '';
-        savedCodeNumber = prefs.getString('userCode') ?? '';
-        token = prefs.getString('accessToken') ?? '';
+        savedPoint = sharedPreferences.getInt('userPoint') ?? 0;
+        savedStudentName = sharedPreferences.getString('userName') ?? '';
+        savedCodeNumber = sharedPreferences.getString('userCode') ?? '';
+        token = sharedPreferences.getString('accessToken') ?? '';
       });
     } catch (e) {
       rethrow;
     }
   }
 
-// 결제 후 남은 포인트를 팝업창에 띄우는 로직 추가
+  Future<void> fetchNonBarcodeItems() async {
+    setState(() {
+      isLoading = true; // 로딩 중 상태를 UI에 반영
+    });
+
+    try {
+      final response = await http
+          .get(Uri.parse('http://localhost:8080/kiosk/non-barcode-item'));
+
+      if (response.statusCode == 200) {
+        List<dynamic> jsonResponse = json.decode(response.body);
+
+        // 데이터를 setState로 업데이트
+        setState(() {
+          futureItems = jsonResponse
+              .map((item) => NonBarcodeItem.fromJson(item))
+              .toList();
+          isLoading = false; // 데이터 로드 완료 후 로딩 상태 해제
+        });
+      } else {
+        throw Exception('Failed to load items');
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      print(e);
+    }
+  }
+
   void showPaymentsPopup(String message, bool isError) {
     showDialog(
       context: context,
@@ -132,52 +170,6 @@ class _PaymentsPageState extends State<PaymentsPage> {
     }
   }
 
-  void addItem(String itemBarcode) {
-    fetchItemData(itemBarcode, 1);
-  }
-
-  Future<void> _handlePayment() async {
-    // onTap 콜백을 async로 선언하여 비동기 처리 가능
-    if (savedPoint - totalPrice >= 0) {
-      await payments(itemResponses);
-    } else {
-      showPaymentsPopup(
-        "잔액이 부족합니다",
-        true,
-      );
-    }
-  }
-
-  Function()? _debounce(Function()? func, int milliseconds) {
-    bool isButtonPressed = false;
-
-    return () {
-      if (!isButtonPressed) {
-        isButtonPressed = true;
-        func?.call();
-        Future.delayed(Duration(milliseconds: milliseconds), () {
-          isButtonPressed = false;
-        });
-      }
-    };
-  }
-
-  void handleBarcodeSubmit() {
-    String barcode = barcodeController.text;
-
-    int quantity = 1;
-
-    if (barcode.isNotEmpty) {
-      fetchItemData(
-        barcode,
-        quantity,
-      );
-
-      // 상품 선택 후 바코드 입력창 초기화
-      barcodeController.clear();
-    }
-  }
-
   Future<void> payments(List<ItemResponseDto> items) async {
     try {
       String apiUrl = '${dbSecure.DB_HOST}/kiosk/executePayments';
@@ -232,6 +224,47 @@ class _PaymentsPageState extends State<PaymentsPage> {
     }
   }
 
+  Future<void> _handlePayment() async {
+    // onTap 콜백을 async로 선언하여 비동기 처리 가능
+    if (savedPoint - totalPrice >= 0) {
+      await payments(itemResponses);
+    } else {
+      showPaymentsPopup(
+        "잔액이 부족합니다",
+        true,
+      );
+    }
+  }
+
+  Function()? _debounce(Function()? func, int milliseconds) {
+    bool isButtonPressed = false;
+    return () {
+      if (!isButtonPressed) {
+        isButtonPressed = true;
+        func?.call();
+        Future.delayed(Duration(milliseconds: milliseconds), () {
+          isButtonPressed = false;
+        });
+      }
+    };
+  }
+
+  void handleBarcodeSubmit() {
+    String barcode = barcodeController.text;
+
+    int quantity = 1;
+
+    if (barcode.isNotEmpty) {
+      fetchItemData(
+        barcode,
+        quantity,
+      );
+
+      // 상품 선택 후 바코드 입력창 초기화
+      barcodeController.clear();
+    }
+  }
+
   @override
   void dispose() {
     barcodeController.dispose();
@@ -246,441 +279,424 @@ class _PaymentsPageState extends State<PaymentsPage> {
       builder: (context, child) => Scaffold(
         body: GestureDetector(
           onTap: () {
-            // 다른 곳을 탭하면 포커스 해제
             barcodeFocusNode.unfocus();
           },
-          child: Container(
-            margin: const EdgeInsets.symmetric(
-              vertical: 50,
-              horizontal: 90,
-            ),
-            alignment: Alignment.center,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20.0),
+                child: Row(
                   children: [
-                    Text(
-                      '$savedStudentName 학생  |  $savedPoint 원',
-                      style: const TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
+                    const Icon(
+                      Icons.people,
+                      color: DevCoopColors.black,
+                      size: 20.0,
                     ),
-                    const SizedBox(width: 30),
-                    Row(
-                      children: [
-                        SizedBox(
-                          height: 60.0, // 원하는 높이로 조정
-                          width: 300.0, // 원하는 너비로 조정
-                          child: TextFormField(
-                            onFieldSubmitted: (_) {
-                              handleBarcodeSubmit();
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          GestureDetector(
+                            onTap: () => {
+                              Get.offAllNamed("/barcode"),
                             },
-                            controller: barcodeController,
-                            focusNode: barcodeFocusNode,
-                            decoration: const InputDecoration(
-                              hintText: '상품 바코드를 입력해주세요',
+                            child: Text(
+                              token.isEmpty ? "로그인하기" : "$savedStudentName님",
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(
-                          width: 20,
-                        ),
-                        mainTextButton(
-                          text: '상품선택',
-                          onTap: () {
-                            handleBarcodeSubmit();
-                          },
-                        ),
-                      ],
+                          Text(
+                            token.isEmpty ? "" : "${savedPoint.toString()}원",
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(
-                  height: 40,
-                ),
-                const Divider(
-                  color: DevCoopColors.black,
-                  thickness: 4,
-                  height: 4,
-                ),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 30,
-                    ),
-                    child: Column(
-                      children: [
-                        paymentsItem(
-                          left: '상품 이름',
-                          // ItemResponseDto의 Getter 사용
-                          type: "이벤트",
-                          center: '수량',
-                          plus: "",
-                          minus: "-",
-                          rightText: '상품 가격',
-                          contentsTitle: true,
-                        ),
-                        const SizedBox(
-                          height: 30,
-                        ),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                for (int i = 0;
-                                    i < itemResponses.length;
-                                    i++) ...[
-                                  paymentsItem(
-                                    left: itemResponses[i].itemName,
-                                    // eventStatus가 'NONE'일 경우 'NONE'을 출력
-                                    // eventStatus가 '1+1'일 경우 '1+1'을 출력
-                                    type: itemResponses[i].type == 'NONE'
-                                        ? '일 반'
-                                        : '1 + 1',
-                                    center: itemResponses[i].quantity,
-                                    plus: "+",
-                                    minus: "-",
-                                    rightText:
-                                        itemResponses[i].itemPrice.toString(),
-                                    totalText: false,
-                                  ),
-                                  if (i < itemResponses.length - 1) ...[
-                                    const SizedBox(
-                                      height: 15,
-                                    ),
-                                  ],
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const Divider(
-                  color: Colors.black,
-                  thickness: 4,
-                  height: 4,
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+              ),
+              const SizedBox(
+                height: 10,
+              ),
+              Expanded(
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 40,
-                      ),
-                      child: savedPoint - totalPrice >= 0
-                          ? paymentsItem(
-                              left: '총 상품 개수 및 합계',
-                              // ItemResponseDto의 Getter 사용
-                              type: "",
-                              center: itemResponses
-                                  .map<int>((item) => item.quantity)
-                                  .fold<int>(
-                                      0,
-                                      (previousValue, element) =>
-                                          previousValue + element),
-                              plus: "",
-                              minus: "",
-                              rightText:
-                                  totalPrice.toString(), // 수정: 값을 String으로 변환
-                            )
-                          : const Text(
-                              "잔액이 부족합니다",
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 30,
-                                fontWeight: FontWeight.w700,
+                    // Left container with scrolling
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.4,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildProductSelect(),
+                            const SizedBox(height: 20),
+                            Container(
+                              padding:
+                                  const EdgeInsets.only(left: 10, right: 10),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: DevCoopColors.primary,
+                              ),
+                              child: DropdownButton<String>(
+                                underline: const SizedBox.shrink(),
+                                value: selectedDropdown,
+                                items: <String>[
+                                  "미등록상품",
+                                  "행사상품"
+                                ].map<DropdownMenuItem<String>>((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(
+                                      value,
+                                      style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    selectedDropdown = newValue;
+                                    if (selectedDropdown == "미등록상품") {
+                                      fetchNonBarcodeItems(); // 데이터 재요청
+                                    }
+                                  });
+                                },
                               ),
                             ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        mainTextButton(
-                          text: '기타상품',
-                          onTap: () async {
-                            await getEventList(
-                                (List<EventItemResponseDto> newList) {
-                              setState(() {
-                                eventItemList = newList;
-                              });
-                            });
-
-                            showDialog(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return AlertDialog(
-                                  title: const Text(
-                                    '행사상품 (1+1)',
-                                    style: TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.black,
+                            const SizedBox(height: 30),
+                            isLoading
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                      color: DevCoopColors.primary,
                                     ),
-                                  ),
-                                  content: eventItemList.isEmpty
-                                      ? const Text(
-                                          '행사상품이 없습니다.',
-                                          style: TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.black,
-                                          ),
-                                        )
-                                      : SingleChildScrollView(
-                                          child: Container(
-                                            alignment: Alignment.centerLeft,
-                                            padding: const EdgeInsets.only(
-                                                left: 50, right: 50),
-                                            child: Column(
-                                              children: [
-                                                const SizedBox(
-                                                  height: 20,
-                                                ),
-                                                Container(
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  width: MediaQuery.of(context)
-                                                      .size
-                                                      .width,
-                                                  height: 400, // 명확한 높이 지정
-                                                  child: Container(
-                                                    width:
-                                                        MediaQuery.of(context)
-                                                            .size
-                                                            .width,
-                                                    alignment:
-                                                        Alignment.centerLeft,
-                                                    child: GridView.builder(
-                                                      shrinkWrap: true,
-                                                      physics:
-                                                          const NeverScrollableScrollPhysics(),
-                                                      gridDelegate:
-                                                          const SliverGridDelegateWithFixedCrossAxisCount(
-                                                              crossAxisCount:
-                                                                  5, // 열당 항목 수
-                                                              crossAxisSpacing:
-                                                                  10, // 항목 간 가로 간격
-                                                              mainAxisSpacing:
-                                                                  10, // 항목 간 세로 간격
-                                                              childAspectRatio:
-                                                                  2 // 각 항목의 종횡비
-                                                              ),
-                                                      itemCount: eventItemList
-                                                          .length, // 항목의 총 수
-                                                      itemBuilder:
-                                                          (context, index) {
-                                                        return Column(
-                                                          children: [
-                                                            Expanded(
-                                                              child: Container(
-                                                                color: index %
-                                                                            2 ==
-                                                                        0
-                                                                    ? DevCoopColors
-                                                                        .primary
-                                                                    : DevCoopColors
-                                                                        .transparent,
-                                                                child: ListTile(
-                                                                  shape: Border
-                                                                      .all(
-                                                                    color: const Color(
-                                                                        0xFFECECEC),
-                                                                    width: 2,
-                                                                  ),
-                                                                  contentPadding:
-                                                                      const EdgeInsets
-                                                                          .symmetric(
-                                                                    vertical:
-                                                                        5.0,
-                                                                    horizontal:
-                                                                        10.0,
-                                                                  ),
-                                                                  title:
-                                                                      SizedBox(
-                                                                    width: double
-                                                                        .infinity,
-                                                                    height: 500,
-                                                                    child:
-                                                                        SingleChildScrollView(
-                                                                      child:
-                                                                          Row(
-                                                                        mainAxisAlignment:
-                                                                            MainAxisAlignment.spaceBetween,
-                                                                        children: [
-                                                                          Text(
-                                                                            eventItemList[index].itemName,
-                                                                            style:
-                                                                                const TextStyle(
-                                                                              fontSize: 20,
-                                                                              fontWeight: FontWeight.w900,
-                                                                              color: Colors.black,
-                                                                            ),
-                                                                            textAlign:
-                                                                                TextAlign.left,
-                                                                          ),
-                                                                          Text(
-                                                                            "${eventItemList[index].itemPrice}원",
-                                                                            style:
-                                                                                const TextStyle(
-                                                                              fontSize: 15,
-                                                                              fontWeight: FontWeight.w900,
-                                                                              color: Colors.black,
-                                                                            ),
-                                                                            textAlign:
-                                                                                TextAlign.left,
-                                                                          ),
-                                                                        ],
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              height: 10,
-                                                            ),
-                                                            SizedBox(
-                                                              width: 250,
-                                                              child:
-                                                                  ElevatedButton(
-                                                                onPressed:
-                                                                    () async {
-                                                                  addItem(eventItemList[
-                                                                          index]
-                                                                      .barcode);
-                                                                  Navigator.of(
-                                                                          context)
-                                                                      .pop();
-                                                                },
-                                                                style:
-                                                                    ButtonStyle(
-                                                                  backgroundColor:
-                                                                      WidgetStateProperty
-                                                                          .all<
-                                                                              Color>(
-                                                                    Colors
-                                                                        .black38,
-                                                                  ),
-                                                                  shape: WidgetStateProperty
-                                                                      .all<
-                                                                          RoundedRectangleBorder>(
-                                                                    RoundedRectangleBorder(
-                                                                      borderRadius:
-                                                                          BorderRadius
-                                                                              .circular(
-                                                                        10,
-                                                                      ),
-                                                                      side:
-                                                                          const BorderSide(
-                                                                        width:
-                                                                            1,
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                                child:
-                                                                    const Text(
-                                                                  "+",
-                                                                  textAlign:
-                                                                      TextAlign
-                                                                          .center,
-                                                                  style:
-                                                                      TextStyle(
-                                                                    color: DevCoopColors
-                                                                        .white,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w700,
-                                                                    fontSize:
-                                                                        30,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            )
-                                                          ],
+                                  )
+                                : selectedDropdown == "미등록상품"
+                                    ? Expanded(
+                                        child: SingleChildScrollView(
+                                          child: ListView.builder(
+                                            shrinkWrap: true,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            itemCount: futureItems.length,
+                                            itemBuilder: (context, index) {
+                                              return SingleChildScrollView(
+                                                child: Container(
+                                                  margin: const EdgeInsets.only(
+                                                      top: 10),
+                                                  padding:
+                                                      const EdgeInsets.all(10),
+                                                  decoration: BoxDecoration(
+                                                    color: isDropDownClick
+                                                        ? dropdownColor
+                                                        : index % 2 == 0
+                                                            ? DevCoopColors
+                                                                .primaryLight
+                                                            : DevCoopColors
+                                                                .grey,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10),
+                                                  ),
+                                                  child: GestureDetector(
+                                                    onTap: () {
+                                                      setState(() {
+                                                        itemResponses.add(
+                                                          ItemResponseDto(
+                                                            itemName:
+                                                                futureItems[
+                                                                        index]
+                                                                    .itemName,
+                                                            itemPrice:
+                                                                futureItems[
+                                                                        index]
+                                                                    .itemPrice,
+                                                            itemId: futureItems[
+                                                                    index]
+                                                                .itemName,
+                                                            quantity: 1,
+                                                            type: 'NONE',
+                                                          ),
                                                         );
-                                                      },
+                                                        totalPrice +=
+                                                            futureItems[index]
+                                                                .itemPrice;
+                                                      });
+                                                    },
+                                                    child: Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceBetween,
+                                                      children: [
+                                                        Text(
+                                                          futureItems[index]
+                                                              .itemName,
+                                                          style: const TextStyle(
+                                                              fontSize: 20,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                        ),
+                                                        Text(
+                                                          '${futureItems[index].itemPrice}원',
+                                                          style: const TextStyle(
+                                                              fontSize: 20,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
                                                 ),
-                                              ],
-                                            ),
+                                              );
+                                            },
                                           ),
                                         ),
-                                  actions: <Widget>[
-                                    mainTextButton(
-                                      text: "닫기",
-                                      onTap: () {
-                                        Navigator.of(context).pop();
-                                      },
-                                    )
+                                      )
+                                    : const Text(
+                                        "행사상품이 없습니다",
+                                        style: DevCoopTextStyle.bold_30,
+                                      ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    // Right container for payment details
+                    Expanded(
+                      flex: 2, // 오른쪽 컨테이너의 flex 값 (더 크게 설정)
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          children: [
+                            const Divider(color: Colors.black, thickness: 4),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 30,
+                                ),
+                                child: Column(
+                                  children: [
+                                    paymentsItem(
+                                      itemName: '상품 이름',
+                                      // ItemResponseDto의 Getter 사용
+                                      type: "이벤트",
+                                      center: '수량',
+                                      plus: "",
+                                      minus: "-",
+                                      rightText: '상품 가격',
+                                      contentsTitle: true,
+                                    ),
+                                    const SizedBox(
+                                      height: 30,
+                                    ),
+                                    Expanded(
+                                      child: SingleChildScrollView(
+                                        child: Column(
+                                          children: [
+                                            for (int i = 0;
+                                                i < itemResponses.length;
+                                                i++) ...[
+                                              paymentsItem(
+                                                itemName:
+                                                    itemResponses[i].itemName,
+                                                // eventStatus가 'NONE'일 경우 'NONE'을 출력
+                                                // eventStatus가 '1+1'일 경우 '1+1'을 출력
+                                                type: itemResponses[i].type ==
+                                                        'NONE'
+                                                    ? '일 반'
+                                                    : '1 + 1',
+                                                center:
+                                                    itemResponses[i].quantity,
+                                                plus: "+",
+                                                minus: "-",
+                                                rightText: itemResponses[i]
+                                                    .itemPrice
+                                                    .toString(),
+                                                totalText: false,
+                                              ),
+                                              if (i <
+                                                  itemResponses.length - 1) ...[
+                                                const SizedBox(
+                                                  height: 15,
+                                                ),
+                                              ],
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ],
-                                );
-                              },
-                            );
-                          },
-                        ),
-                        const SizedBox(
-                          width: 20,
-                        ),
-                        mainTextButton(
-                          text: '전체삭제',
-                          onTap: () {
-                            setState(() {
-                              itemResponses.clear();
-                              totalPrice = 0;
-                            });
-                          },
-                        ),
-                        const SizedBox(
-                          width: 20,
-                        ),
-                        mainTextButton(
-                          text: '처음으로',
-                          onTap: () {
-                            removeUserData();
-                            Get.offAllNamed("/");
-                          },
-                        ),
-                        const SizedBox(
-                          width: 20,
-                        ),
-                        mainTextButton(
-                          text: '계산하기',
-                          isButtonDisabled: isButtonDisabled,
-                          onTap: _debounce(() async {
-                            setState(() {
-                              isButtonDisabled = true;
-                            });
+                                ),
+                              ),
+                            ),
+                            const Divider(
+                              color: Colors.black,
+                              thickness: 4,
+                              height: 4,
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 40,
+                                  ),
+                                  child: savedPoint - totalPrice >= 0
+                                      ? paymentsItem(
+                                          itemName: '총 가격',
+                                          // ItemResponseDto의 Getter 사용
+                                          type: "",
+                                          center: itemResponses
+                                              .map<int>((item) => item.quantity)
+                                              .fold<int>(
+                                                  0,
+                                                  (previousValue, element) =>
+                                                      previousValue + element),
+                                          plus: "",
+                                          minus: "",
+                                          rightText: totalPrice.toString(),
+                                        )
+                                      : const Text(
+                                          "잔액이 부족합니다",
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 30,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    mainTextButton(
+                                      text: const Icon(
+                                        Icons.delete,
+                                        weight: 20,
+                                      ),
+                                      onTap: () {
+                                        setState(() {
+                                          itemResponses.clear();
+                                          totalPrice = 0;
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(
+                                      width: 20,
+                                    ),
+                                    mainTextButton(
+                                      text: const Icon(
+                                        Icons.logout,
+                                        weight: 20,
+                                      ),
+                                      onTap: () {
+                                        removeUserData();
+                                        Get.offAllNamed("/");
+                                      },
+                                    ),
+                                    const SizedBox(
+                                      width: 20,
+                                    ),
+                                    mainTextButton(
+                                      text: const Icon(
+                                        Icons.payment,
+                                        weight: 20,
+                                      ),
+                                      isButtonDisabled: isButtonDisabled,
+                                      onTap: _debounce(() async {
+                                        setState(() {
+                                          isButtonDisabled = true;
+                                        });
 
-                            await _handlePayment();
+                                        await _handlePayment();
 
-                            setState(() {
-                              isButtonDisabled = true;
-                            });
-                          }, 5000), // 5초 동안 버튼 비활성화
+                                        setState(() {
+                                          isButtonDisabled = true;
+                                        });
+                                      }, 5000), // 5초 동안 버튼 비활성화
+                                    ),
+                                  ],
+                                )
+                              ],
+                            ),
+                          ],
                         ),
-                      ],
-                    )
+                      ),
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              SizedBox(
+                height: 20.h,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  Row _buildProductSelect() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(left: 20),
+                height: 60.0,
+                width: 300.0,
+                child: TextFormField(
+                  onFieldSubmitted: (_) => handleBarcodeSubmit(),
+                  controller: barcodeController,
+                  focusNode: barcodeFocusNode,
+                  decoration: const InputDecoration(
+                    hintText: '상품 바코드를 입력해주세요',
+                    border: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                          color: DevCoopColors.transparent), // 기본 테두리 색상
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide:
+                          BorderSide(color: DevCoopColors.grey), // 포커스 상태의 색상
+                    ),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                          color: DevCoopColors.transparent), // 일반 상태의 색상
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        mainTextButton(
+          text: const Icon(
+            Icons.check,
+            weight: 10.0,
+          ),
+          onTap: () => handleBarcodeSubmit(),
+        ),
+      ],
+    );
+  }
+
   Row paymentsItem({
-    required String left,
+    required String itemName,
     required String type,
     required dynamic center,
     required String plus,
@@ -694,7 +710,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
       children: [
         Expanded(
           child: Text(
-            left,
+            itemName,
             style: contentsTitle
                 ? DevCoopTextStyle.medium_30.copyWith(
                     color: DevCoopColors.black,
@@ -703,7 +719,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     ? DevCoopTextStyle.bold_30.copyWith(
                         color: DevCoopColors.black,
                       )
-                    : DevCoopTextStyle.bold_30.copyWith(
+                    : DevCoopTextStyle.light_30.copyWith(
                         color: DevCoopColors.black,
                       ),
             maxLines: 1,
@@ -742,7 +758,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     ? DevCoopTextStyle.bold_30.copyWith(
                         color: DevCoopColors.black,
                       )
-                    : DevCoopTextStyle.bold_30.copyWith(
+                    : DevCoopTextStyle.light_30.copyWith(
                         color: DevCoopColors.black,
                       ),
           ),
@@ -760,7 +776,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           ? DevCoopTextStyle.bold_30.copyWith(
                               color: DevCoopColors.black,
                             )
-                          : DevCoopTextStyle.bold_30.copyWith(
+                          : DevCoopTextStyle.light_30.copyWith(
                               color: DevCoopColors.black,
                             )),
         ),
@@ -772,11 +788,11 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   onPressed: () {
                     setState(() {
                       itemResponses
-                          .firstWhere((element) => element.itemName == left)
+                          .firstWhere((element) => element.itemName == itemName)
                           .quantity += 1;
                       // 상품 추가 버튼 클릭 시 상품 갯수 증가
                       totalPrice += itemResponses
-                          .firstWhere((element) => element.itemName == left)
+                          .firstWhere((element) => element.itemName == itemName)
                           .itemPrice;
                     });
                   },
@@ -810,7 +826,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                   onPressed: () {
                     setState(() {
                       for (int i = 0; i < itemResponses.length; i++) {
-                        if (itemResponses[i].itemName == left) {
+                        if (itemResponses[i].itemName == itemName) {
                           if (itemResponses[i].quantity > 1) {
                             itemResponses[i].quantity -= 1;
                             break;
@@ -830,7 +846,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
                       // 상품 삭제 버튼 클릭 시 상품 총 가격 감소
                       totalPrice > 0
                           ? totalPrice -= itemResponses
-                              .firstWhere((element) => element.itemName == left)
+                              .firstWhere(
+                                  (element) => element.itemName == itemName)
                               .itemPrice
                           : totalPrice = 0;
                     });

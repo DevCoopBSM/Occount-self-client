@@ -28,7 +28,7 @@ class _CheckStudentState extends State<CheckStudent> {
   }
 
   void navigateToNextPage() {
-    Get.toNamed('/payments');
+    Get.offAllNamed('/payments');
   }
 
   Future<void> loadUserData() async {

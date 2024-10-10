@@ -3,7 +3,7 @@ import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
 import 'package:flutter/material.dart';
 
 GestureDetector mainTextButton({
-  required String text,
+  required dynamic text,
   bool isButtonDisabled = false, // 기본값 설정
   required Function()? onTap,
   Color? color,
@@ -13,7 +13,7 @@ GestureDetector mainTextButton({
     child: Container(
       padding: const EdgeInsets.symmetric(
         vertical: 8,
-        horizontal: 30,
+        horizontal: 16,
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(
@@ -32,13 +32,15 @@ GestureDetector mainTextButton({
           ),
         ],
       ),
-      child: Text(
-        text,
-        style: DevCoopTextStyle.bold_30.copyWith(
-          color: DevCoopColors.black,
-          fontSize: 24,
-        ),
-      ),
+      child: text is String
+          ? Text(
+              text,
+              style: DevCoopTextStyle.bold_30.copyWith(
+                color: DevCoopColors.black,
+                fontSize: 24,
+              ),
+            )
+          : text,
     ),
   );
 }
