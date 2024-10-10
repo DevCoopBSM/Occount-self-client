@@ -22,11 +22,4 @@ class ItemResponseDto {
       type: json['type'] ?? 'NONE', // null 처리 또는 기본값 지정
     );
   }
-
-  // Getter 생성
-  int get getItemPrice => itemPrice;
-  String get getItemName => itemName;
-  String get getItemId => itemId;
-  int get getQuantity => quantity;
-  String get getType => type;
 }

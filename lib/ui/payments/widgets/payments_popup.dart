@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+void navigateToNextPage() {
+  Get.offAllNamed('/');
+}
+
 Future<void> removeUserData() async {
   try {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -15,10 +19,6 @@ Future<void> removeUserData() async {
   } catch (e) {
     rethrow;
   }
-}
-
-void navigateToNextPage() {
-  Get.offAllNamed('/');
 }
 
 AlertDialog paymentsPopUp(BuildContext context, String message, bool isError) {
