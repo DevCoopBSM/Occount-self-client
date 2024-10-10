@@ -77,7 +77,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
     try {
       final response = await http
-          .get(Uri.parse('http://localhost:8080/kiosk/non-barcode-item'));
+          .get(Uri.parse('${dbSecure.DB_HOST}/kiosk/non-barcode-item'));
 
       if (response.statusCode == 200) {
         List<dynamic> jsonResponse = json.decode(response.body);

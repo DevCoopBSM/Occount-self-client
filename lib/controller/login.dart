@@ -17,7 +17,7 @@ class LoginController {
     };
 
     String jsonData = json.encode(requestBody);
-    String apiUrl = 'http://localhost:8080/kiosk/auth/signIn'; // 실제 서버 주소로 변경
+    String apiUrl = '${dbSecure.DB_HOST}/kiosk/auth/signIn'; // 실제 서버 주소로 변경
 
     try {
       // 로딩 인디케이터 표시
