@@ -96,6 +96,7 @@ class LoginController {
             duration: const Duration(seconds: 2));
       }
     } catch (e) {
+      print(e);
       Get.snackbar("Error", "로그인 중 오류가 발생했습니다: $e",
           colorText: Colors.white,
           backgroundColor: Colors.red,

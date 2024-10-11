@@ -37,7 +37,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
   String token = '';
   bool isButtonDisabled = false;
   Color dropdownColor = DevCoopColors.primary;
-  String? selectedDropdown = "미등록상품";
+  String? selectedDropdown = "바코드 없는 상품";
   List<NonBarcodeItem> futureItems = [];
   bool isLoading = false;
   bool isDropDownClick = false;
@@ -352,7 +352,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                 underline: const SizedBox.shrink(),
                                 value: selectedDropdown,
                                 items: <String>[
-                                  "미등록상품",
+                                  "바코드 없는 상품",
                                   "행사상품"
                                 ].map<DropdownMenuItem<String>>((String value) {
                                   return DropdownMenuItem<String>(
@@ -368,7 +368,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                 onChanged: (String? newValue) {
                                   setState(() {
                                     selectedDropdown = newValue;
-                                    if (selectedDropdown == "미등록상품") {
+                                    if (selectedDropdown == "바코드 없는 상품") {
                                       fetchNonBarcodeItems(); // 데이터 재요청
                                     }
                                   });
@@ -382,7 +382,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                       color: DevCoopColors.primary,
                                     ),
                                   )
-                                : selectedDropdown == "미등록상품"
+                                : selectedDropdown == "바코드 없는 상품"
                                     ? Expanded(
                                         child: SingleChildScrollView(
                                           child: ListView.builder(
