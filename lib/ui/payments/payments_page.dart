@@ -341,39 +341,49 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           children: [
                             _buildProductSelect(),
                             const SizedBox(height: 20),
-                            Container(
-                              padding:
-                                  const EdgeInsets.only(left: 10, right: 10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                color: DevCoopColors.primary,
-                              ),
-                              child: DropdownButton<String>(
-                                underline: const SizedBox.shrink(),
-                                value: selectedDropdown,
-                                items: <String>[
-                                  "바코드 없는 상품",
-                                  "행사상품"
-                                ].map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(
-                                      value,
-                                      style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    selectedDropdown = newValue;
-                                    if (selectedDropdown == "바코드 없는 상품") {
-                                      fetchNonBarcodeItems(); // 데이터 재요청
-                                    }
-                                  });
-                                },
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Container(
+                                  alignment: Alignment.centerRight,
+                                  width: 160,
+                                  padding: const EdgeInsets.only(
+                                      left: 10, right: 10),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: DevCoopColors.primary,
+                                  ),
+                                  child: DropdownButton<String>(
+                                    underline: const SizedBox.shrink(),
+                                    value: selectedDropdown,
+                                    items: <String>["바코드 없는 상품", "행사상품"]
+                                        .map<DropdownMenuItem<String>>(
+                                            (String value) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Container(
+                                          alignment: Alignment.centerRight,
+                                          child: Text(
+                                            value,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (String? newValue) {
+                                      setState(() {
+                                        selectedDropdown = newValue;
+                                        if (selectedDropdown == "바코드 없는 상품") {
+                                          fetchNonBarcodeItems(); // 데이터 재요청
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 30),
                             isLoading
@@ -412,26 +422,48 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                                   child: GestureDetector(
                                                     onTap: () {
                                                       setState(() {
-                                                        itemResponses.add(
-                                                          ItemResponseDto(
-                                                            itemName:
+                                                        // 이미 존재하는 아이템인지 확인
+                                                        bool itemExists = false;
+                                                        for (var response
+                                                            in itemResponses) {
+                                                          if (response
+                                                                  .itemName ==
+                                                              futureItems[index]
+                                                                  .itemName) {
+                                                            response.quantity +=
+                                                                1; // 수량 증가
+                                                            totalPrice +=
                                                                 futureItems[
                                                                         index]
-                                                                    .itemName,
-                                                            itemPrice:
-                                                                futureItems[
-                                                                        index]
-                                                                    .itemPrice,
-                                                            itemId: futureItems[
-                                                                    index]
-                                                                .itemName,
-                                                            quantity: 1,
-                                                            type: 'NONE',
-                                                          ),
-                                                        );
-                                                        totalPrice +=
-                                                            futureItems[index]
-                                                                .itemPrice;
+                                                                    .itemPrice; // 총 가격 업데이트
+                                                            itemExists = true;
+                                                            break;
+                                                          }
+                                                        }
+                                                        // 아이템이 존재하지 않으면 새로 추가
+                                                        if (!itemExists) {
+                                                          itemResponses.add(
+                                                            ItemResponseDto(
+                                                              itemName:
+                                                                  futureItems[
+                                                                          index]
+                                                                      .itemName,
+                                                              itemPrice:
+                                                                  futureItems[
+                                                                          index]
+                                                                      .itemPrice,
+                                                              itemId:
+                                                                  futureItems[
+                                                                          index]
+                                                                      .itemName,
+                                                              quantity: 1,
+                                                              type: 'NONE',
+                                                            ),
+                                                          );
+                                                          totalPrice +=
+                                                              futureItems[index]
+                                                                  .itemPrice; // 총 가격 업데이트
+                                                        }
                                                       });
                                                     },
                                                     child: Row(
@@ -582,10 +614,19 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
                                     mainTextButton(
-                                      text: const Icon(
-                                        Icons.delete,
-                                        weight: 20,
-                                      ),
+                                      text: const Row(children: [
+                                        Icon(
+                                          Icons.delete,
+                                          weight: 20,
+                                        ),
+                                        Text(
+                                          "삭제",
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      ]),
                                       onTap: () {
                                         setState(() {
                                           itemResponses.clear();
@@ -597,10 +638,19 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                       width: 20,
                                     ),
                                     mainTextButton(
-                                      text: const Icon(
-                                        Icons.logout,
-                                        weight: 20,
-                                      ),
+                                      text: const Row(children: [
+                                        Icon(
+                                          Icons.logout,
+                                          weight: 20,
+                                        ),
+                                        Text(
+                                          "홈으로",
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      ]),
                                       onTap: () {
                                         removeUserData();
                                         Get.offAllNamed("/");
@@ -610,10 +660,19 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                       width: 20,
                                     ),
                                     mainTextButton(
-                                      text: const Icon(
-                                        Icons.payment,
-                                        weight: 20,
-                                      ),
+                                      text: const Row(children: [
+                                        Icon(
+                                          Icons.payment,
+                                          weight: 20,
+                                        ),
+                                        Text(
+                                          "결제",
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      ]),
                                       isButtonDisabled: isButtonDisabled,
                                       onTap: _debounce(() async {
                                         setState(() {

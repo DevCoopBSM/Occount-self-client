@@ -13,7 +13,7 @@ GestureDetector mainTextButton({
     child: Container(
       padding: const EdgeInsets.symmetric(
         vertical: 8,
-        horizontal: 16,
+        horizontal: 50,
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(
