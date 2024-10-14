@@ -7,7 +7,8 @@ class PersonCounterService {
   final AudioPlayer _audioPlayer = AudioPlayer();
   double _currentAvgCount = 0;
   bool _isPlaying = false;
-  bool hasEntered = false;  // 사람이 들어왔는지 여부
+  bool hasEntered = false;
+  Timer? _reconnectionTimer;
 
   PersonCounterService() {
     _initWebSocket();
@@ -22,14 +23,25 @@ class PersonCounterService {
         _handleMessage,
         onError: (error) {
           print('WebSocket error: $error');
+          _scheduleReconnection();
         },
         onDone: () {
           print('WebSocket connection closed');
+          _scheduleReconnection();
         },
       );
     } catch (e) {
       print('Error initializing WebSocket: $e');
+      _scheduleReconnection();
     }
+  }
+
+  void _scheduleReconnection() {
+    _reconnectionTimer?.cancel();
+    _reconnectionTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+      print('Attempting to reconnect...');
+      _initWebSocket();
+    });
   }
 
   void _handleMessage(dynamic message) {
@@ -38,11 +50,7 @@ class PersonCounterService {
       _currentAvgCount = (data['avg_count'] as num).toDouble();
       print('Current average count: $_currentAvgCount');
 
-      // 안정화 타이머 비활성화
-      //_stabilityTimer?.cancel();
-      //_stabilityTimer = Timer(Duration(seconds: 2), _checkStableCount);
-
-      _checkStableCount();  // 바로 실행해보기
+      _checkStableCount();
     } catch (e) {
       print('Error handling message: $e');
     }
@@ -51,19 +59,25 @@ class PersonCounterService {
   void _checkStableCount() {
     print('Checking stable count: $_currentAvgCount');
 
-    // 0이 아닌 값이 들어왔을 때 "어서오세요"를 한 번만 재생
-    if (_currentAvgCount != 0 && !hasEntered) {
+    bool isSignificantChange = _isSignificantChange(_currentAvgCount);
+
+    if (isSignificantChange && _currentAvgCount > 0 && !hasEntered) {
       print('Playing welcome message');
       _playWelcomeMessage();
-      hasEntered = true;  // 사람이 들어왔으므로 "어서오세요"는 더 이상 재생하지 않음
-    }
-
-    // 0이 되었을 때 "안녕히 가세요" 메시지 재생하고 다시 "어서오세요" 가능 상태로 초기화
-    else if (_currentAvgCount == 0 && hasEntered) {
+      hasEntered = true;
+    } else if (isSignificantChange && _currentAvgCount == 0 && hasEntered) {
       print('Playing goodbye message');
       _playGoodbyeMessage();
-      hasEntered = false;  // 사람이 나갔으므로 "어서오세요"를 다시 재생할 수 있게 함
+      hasEntered = false;
     }
+  }
+
+  bool _isSignificantChange(double count) {
+    // 소수점 둘째 자리까지만 고려
+    double roundedCount = (count * 100).round() / 100;
+    
+    // 0, 0.5, 1, 1.5, 2 등의 값일 때만 유의미한 변화로 간주
+    return (roundedCount * 2).round() == roundedCount * 2;
   }
 
   Future<void> _playWelcomeMessage() async {
@@ -102,6 +116,6 @@ class PersonCounterService {
     print('Disposing PersonCounterService');
     _channel.sink.close();
     _audioPlayer.dispose();
-    //_stabilityTimer?.cancel();
+    _reconnectionTimer?.cancel();
   }
 }
