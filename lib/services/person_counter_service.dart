@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class PersonCounterService {
   late WebSocketChannel _channel;
   final AudioPlayer _audioPlayer = AudioPlayer();
-  int _lastAvgCount = 0;
+  double _lastAvgCount = 0;
 
   PersonCounterService() {
     _initWebSocket();
@@ -25,26 +25,36 @@ class PersonCounterService {
   }
 
   void _handleMessage(dynamic message) {
-    final Map<String, dynamic> data = jsonDecode(message);
-    final int currentAvgCount = data['avg_count'] ?? 0;
+    try {
+      final Map<String, dynamic> data = jsonDecode(message);
+      final double currentAvgCount = (data['avg_count'] as num).toDouble();
 
-    if (currentAvgCount > _lastAvgCount) {
-      _playWelcomeMessage();
-    } else if (currentAvgCount < _lastAvgCount && currentAvgCount == 0) {
-      _playGoodbyeMessage();
+      if (currentAvgCount > _lastAvgCount) {
+        _playWelcomeMessage();
+      } else if (currentAvgCount < _lastAvgCount && currentAvgCount == 0) {
+        _playGoodbyeMessage();
+      }
+
+      _lastAvgCount = currentAvgCount;
+    } catch (e) {
+      print('Error handling message: $e');
     }
-
-    _lastAvgCount = currentAvgCount;
   }
 
   Future<void> _playWelcomeMessage() async {
-    await _audioPlayer.setAsset('assets/audios/welcome.mp3');
-    await _audioPlayer.play();
+    try {
+      await _audioPlayer.play(AssetSource('audios/welcome.mp3'));
+    } catch (e) {
+      print('Error playing welcome message: $e');
+    }
   }
 
   Future<void> _playGoodbyeMessage() async {
-    await _audioPlayer.setAsset('assets/audios/goodbye.mp3');
-    await _audioPlayer.play();
+    try {
+      await _audioPlayer.play(AssetSource('audios/goodbye.mp3'));
+    } catch (e) {
+      print('Error playing goodbye message: $e');
+    }
   }
 
   void dispose() {
