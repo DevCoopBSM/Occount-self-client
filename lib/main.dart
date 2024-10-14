@@ -4,14 +4,34 @@ import 'package:counter/ui/_constant/util/app_router.dart';
 import 'package:counter/ui/barcode/barcode_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:counter/services/person_counter_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late PersonCounterService _personCounterService;
+
+  @override
+  void initState() {
+    super.initState();
+    _personCounterService = PersonCounterService();
+  }
+
+  @override
+  void dispose() {
+    _personCounterService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
