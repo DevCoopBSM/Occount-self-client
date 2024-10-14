@@ -20,18 +20,27 @@ class PersonCounterService {
       _channel = WebSocketChannel.connect(
         Uri.parse('wss://occount.bsm-aripay.kr/ws/person_count'),
       );
-      _channel.stream.listen(_handleMessage, onError: (error) {
-        print('WebSocket error: $error');
-      });
+      print('WebSocket connected successfully');
+      _channel.stream.listen(
+        _handleMessage,
+        onError: (error) {
+          print('WebSocket error: $error');
+        },
+        onDone: () {
+          print('WebSocket connection closed');
+        },
+      );
     } catch (e) {
       print('Error initializing WebSocket: $e');
     }
   }
 
   void _handleMessage(dynamic message) {
+    print('Received message: $message'); // 디버깅을 위한 출력
     try {
       final Map<String, dynamic> data = jsonDecode(message);
       _currentAvgCount = (data['avg_count'] as num).toDouble();
+      print('Current average count: $_currentAvgCount');
 
       // 안정화 타이머 재설정
       _stabilityTimer?.cancel();
@@ -42,10 +51,12 @@ class PersonCounterService {
   }
 
   void _checkStableCount() {
+    print('Checking stable count: $_currentAvgCount vs $_lastStableAvgCount');
     if (_currentAvgCount > _lastStableAvgCount && _currentAvgCount >= 1) {
+      print('Playing welcome message');
       _playWelcomeMessage();
-    } else if (_currentAvgCount < _lastStableAvgCount &&
-        _currentAvgCount == 0) {
+    } else if (_currentAvgCount < _lastStableAvgCount && _currentAvgCount == 0) {
+      print('Playing goodbye message');
       _playGoodbyeMessage();
     }
     _lastStableAvgCount = _currentAvgCount;
@@ -55,8 +66,10 @@ class PersonCounterService {
     if (!_isPlaying) {
       _isPlaying = true;
       try {
+        print('Attempting to play welcome message');
         await _audioPlayer.play(AssetSource('audios/welcome.mp3'));
-        await Future.delayed(Duration(seconds: 2)); // 음성 재생 시간을 고려한 지연
+        print('Welcome message played successfully');
+        await Future.delayed(Duration(seconds: 2));
       } catch (e) {
         print('Error playing welcome message: $e');
       } finally {
@@ -69,8 +82,10 @@ class PersonCounterService {
     if (!_isPlaying) {
       _isPlaying = true;
       try {
+        print('Attempting to play goodbye message');
         await _audioPlayer.play(AssetSource('audios/goodbye.mp3'));
-        await Future.delayed(Duration(seconds: 2)); // 음성 재생 시간을 고려한 지연
+        print('Goodbye message played successfully');
+        await Future.delayed(Duration(seconds: 2));
       } catch (e) {
         print('Error playing goodbye message: $e');
       } finally {
@@ -80,6 +95,7 @@ class PersonCounterService {
   }
 
   void dispose() {
+    print('Disposing PersonCounterService');
     _channel.sink.close();
     _audioPlayer.dispose();
     _stabilityTimer?.cancel();
