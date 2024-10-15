@@ -8,6 +8,8 @@ class PersonCounterService {
   double _currentAvgCount = 0;
   bool _isPlaying = false;
   bool hasEntered = false;
+  int nonZeroCount = 0; // 0이 아닌 값 카운트
+  int zeroCount = 0; // 0 값 카운트
   Timer? _reconnectionTimer;
 
   PersonCounterService() {
@@ -59,25 +61,27 @@ class PersonCounterService {
   void _checkStableCount() {
     print('Checking stable count: $_currentAvgCount');
 
-    bool isSignificantChange = _isSignificantChange(_currentAvgCount);
+    if (_currentAvgCount > 0) {
+      nonZeroCount++;
+      zeroCount = 0; // 0 카운트 초기화
+    } else {
+      zeroCount++;
+      nonZeroCount = 0; // 0이 아닌 카운트 초기화
+    }
 
-    if (isSignificantChange && _currentAvgCount > 0 && !hasEntered) {
+    // 0이 아닌 값이 2번 감지되면 웰컴 메시지
+    if (nonZeroCount >= 2 && !hasEntered) {
       print('Playing welcome message');
       _playWelcomeMessage();
       hasEntered = true;
-    } else if (isSignificantChange && _currentAvgCount == 0 && hasEntered) {
+    }
+
+    // 0 값이 2번 감지되면 굿바이 메시지
+    if (zeroCount >= 2 && hasEntered) {
       print('Playing goodbye message');
       _playGoodbyeMessage();
       hasEntered = false;
     }
-  }
-
-  bool _isSignificantChange(double count) {
-    // 소수점 둘째 자리까지만 고려
-    double roundedCount = (count * 100).round() / 100;
-    
-    // 0, 0.5, 1, 1.5, 2 등의 값일 때만 유의미한 변화로 간주
-    return (roundedCount * 2).round() == roundedCount * 2;
   }
 
   Future<void> _playWelcomeMessage() async {
