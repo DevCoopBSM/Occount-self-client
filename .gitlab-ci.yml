@@ -1,5 +1,3 @@
-image: google/dart:latest
-
 stages:
   - test
   - build
@@ -20,7 +18,7 @@ test:
   extends: .flutter_setup
   stage: test
   tags:
-    - windows
+    - kiosk
   script:
     - flutter analyze
     - flutter test
@@ -29,7 +27,7 @@ build:
   extends: .flutter_setup
   stage: build
   tags:
-    - windows
+    - kiosk
   script:
     - flutter config --enable-windows-desktop
     - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
@@ -43,7 +41,7 @@ build:
 deploy:
   stage: deploy
   tags:
-    - windows
+    - kiosk
   script:
     - echo "Deploying application..."
     - powershell -File $env:CI_SCRIPTS_PATH -stage deploy
