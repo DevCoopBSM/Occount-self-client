@@ -14,6 +14,10 @@ cache:
 
 before_script:
   - apt-get update -yq
+  - apt-get install -y curl gnupg
+  - curl https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+  - curl https://storage.googleapis.com/download.dartlang.org/linux/debian/dart_stable.list > /etc/apt/sources.list.d/dart_stable.list
+  - apt-get update -yq
   - apt-get install -y curl git unzip xz-utils zip libglu1-mesa
   - git clone https://github.com/flutter/flutter.git -b stable
   - export PATH="$PATH:`pwd`/flutter/bin"
