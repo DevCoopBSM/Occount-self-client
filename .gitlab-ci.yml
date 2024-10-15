@@ -6,37 +6,33 @@ stages:
   - deploy
 
 variables:
-  PUB_CACHE: $CI_PROJECT_DIR/.pub-cache
+  FLUTTER_VERSION: '3.10.0'
 
-cache:
-  paths:
-    - .pub-cache/
-
-before_script:
-  - apt-get update -yq
-  - apt-get install -y curl gnupg
-  - curl https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-  - curl https://storage.googleapis.com/download.dartlang.org/linux/debian/dart_stable.list > /etc/apt/sources.list.d/dart_stable.list
-  - apt-get update -yq
-  - apt-get install -y curl git unzip xz-utils zip libglu1-mesa
-  - git clone https://github.com/flutter/flutter.git -b stable
-  - export PATH="$PATH:`pwd`/flutter/bin"
-  - flutter doctor
-  - flutter pub get
+.flutter_setup:
+  before_script:
+    - Invoke-WebRequest -Uri "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$FLUTTER_VERSION-stable.zip" -OutFile "flutter.zip"
+    - Expand-Archive -Path "flutter.zip" -DestinationPath "C:\"
+    - $env:Path += ";C:\flutter\bin"
+    - flutter doctor
+    - flutter pub get
 
 test:
+  extends: .flutter_setup
   stage: test
+  tags:
+    - windows
   script:
     - flutter analyze
     - flutter test
 
-build_windows:
+build:
+  extends: .flutter_setup
   stage: build
   tags:
     - windows
   script:
     - flutter config --enable-windows-desktop
-    - flutter build windows --release --dart-define=DB_HOST=$DB_HOST
+    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
   artifacts:
     paths:
       - build/windows/runner/Release/
@@ -50,6 +46,6 @@ deploy:
     - windows
   script:
     - echo "Deploying application..."
-    - powershell -File $CI_SCRIPTS_PATH -stage deploy
+    - powershell -File $env:CI_SCRIPTS_PATH -stage deploy
   only:
     - main
