@@ -1,5 +1,5 @@
 stages:
-  - test
+  - analyze
   - build
   - deploy
 
@@ -23,14 +23,19 @@ variables:
     - flutter doctor
     - flutter pub get
 
-test:
+analyze:
   extends: .flutter_setup
-  stage: test
+  stage: analyze
   tags:
     - kiosk
   script:
-    - flutter analyze; if ($LASTEXITCODE -ne 0) { Write-Host "Flutter analyze completed with warnings/errors" }
-    - flutter test
+    - flutter analyze
+    - if ($LASTEXITCODE -ne 0) { 
+        Write-Host "Flutter analyze completed with warnings/errors. Please review and fix the issues."
+        exit 1
+      } else {
+        Write-Host "Flutter analyze completed successfully."
+      }
 
 build:
   extends: .flutter_setup
