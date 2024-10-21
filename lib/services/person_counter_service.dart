@@ -2,65 +2,84 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:logging/logging.dart';
 
 class PersonCounterService {
-  late WebSocketChannel _channel;
+  WebSocketChannel? _channel;
   final AudioPlayer _audioPlayer = AudioPlayer();
   double _currentAvgCount = 0;
   bool _isPlaying = false;
   bool hasEntered = false;
-  int nonZeroCount = 0; // 0이 아닌 값 카운트
-  int zeroCount = 0; // 0 값 카운트
+  int nonZeroCount = 0;
+  int zeroCount = 0;
   Timer? _reconnectionTimer;
+  bool _isConnecting = false;
+  int _reconnectAttempts = 0;
+  final Logger _logger = Logger('PersonCounterService');
 
   PersonCounterService() {
     _initWebSocket();
   }
 
   void _initWebSocket() {
+    if (_isConnecting) return;
+    _isConnecting = true;
+
     try {
       _channel = WebSocketChannel.connect(
         Uri.parse('wss://occount.bsm-aripay.kr/ws/person_count'),
       );
-      _channel.stream.listen(
+      _channel!.stream.listen(
         _handleMessage,
         onError: (error) {
-          print('WebSocket error: $error');
+          _logger.warning('WebSocket error: $error');
           _scheduleReconnection();
         },
         onDone: () {
-          print('WebSocket connection closed');
+          _logger.info('WebSocket connection closed');
           _scheduleReconnection();
         },
       );
+      _reconnectAttempts = 0;
+      _isConnecting = false;
     } catch (e) {
-      print('Error initializing WebSocket: $e');
+      _logger.severe('Error initializing WebSocket: $e');
       _scheduleReconnection();
     }
   }
 
   void _scheduleReconnection() {
     _reconnectionTimer?.cancel();
-    _reconnectionTimer = Timer.periodic(Duration(seconds: 5), (timer) {
-      print('Attempting to reconnect...');
+    _isConnecting = false;
+    final delay = Duration(seconds: _calculateBackoff());
+    _reconnectionTimer = Timer(delay, () {
+      _logger.info('Attempting to reconnect...');
       _initWebSocket();
     });
+  }
+
+  int _calculateBackoff() {
+    _reconnectAttempts++;
+    return _reconnectAttempts.clamp(1, 6) * 5; // 5초에서 30초 사이로 제한
   }
 
   void _handleMessage(dynamic message) {
     try {
       final Map<String, dynamic> data = jsonDecode(message);
-      _currentAvgCount = (data['avg_count'] as num).toDouble();
-      print('Current average count: $_currentAvgCount');
-
-      _checkStableCount();
+      if (data.containsKey('avg_count')) {
+        _currentAvgCount = (data['avg_count'] as num).toDouble();
+        _logger.info('Current average count: $_currentAvgCount');
+        _checkStableCount();
+      } else {
+        _logger.warning('Received unknown message type: $data');
+      }
     } catch (e) {
-      print('Error handling message: $e');
+      _logger.severe('Error handling message: $e');
     }
   }
 
   void _checkStableCount() {
-    print('Checking stable count: $_currentAvgCount');
+    _logger.info('Checking stable count: $_currentAvgCount');
 
     if (_currentAvgCount > 0) {
       nonZeroCount++;
@@ -70,16 +89,16 @@ class PersonCounterService {
       nonZeroCount = 0; // 0이 아닌 카운트 초기화
     }
 
-    // 0이 아닌 값이 2번 감지되면 웰컴 메시지
-    if (nonZeroCount >= 2 && !hasEntered) {
-      print('Playing welcome message');
+    // 0이 아닌 값이 3번 감지되면 웰컴 메시지
+    if (nonZeroCount >= 3 && !hasEntered) {
+      _logger.info('Playing welcome message');
       _playWelcomeMessage();
       hasEntered = true;
     }
 
     // 0 값이 2번 감지되면 굿바이 메시지
     if (zeroCount >= 2 && hasEntered) {
-      print('Playing goodbye message');
+      _logger.info('Playing goodbye message');
       _playGoodbyeMessage();
       hasEntered = false;
     }
@@ -89,12 +108,12 @@ class PersonCounterService {
     if (!_isPlaying) {
       _isPlaying = true;
       try {
-        print('Attempting to play welcome message');
+        _logger.info('Attempting to play welcome message');
         await _audioPlayer.play(AssetSource('audios/welcome.mp3'));
-        print('Welcome message played successfully');
-        await Future.delayed(Duration(seconds: 2));
+        _logger.info('Welcome message played successfully');
+        await const Duration(seconds: 2);
       } catch (e) {
-        print('Error playing welcome message: $e');
+        _logger.severe('Error playing welcome message: $e');
       } finally {
         _isPlaying = false;
       }
@@ -105,12 +124,12 @@ class PersonCounterService {
     if (!_isPlaying) {
       _isPlaying = true;
       try {
-        print('Attempting to play goodbye message');
+        _logger.info('Attempting to play goodbye message');
         await _audioPlayer.play(AssetSource('audios/goodbye.mp3'));
-        print('Goodbye message played successfully');
-        await Future.delayed(Duration(seconds: 2));
+        _logger.info('Goodbye message played successfully');
+        await const Duration(seconds: 2);
       } catch (e) {
-        print('Error playing goodbye message: $e');
+        _logger.severe('Error playing goodbye message: $e');
       } finally {
         _isPlaying = false;
       }
@@ -119,7 +138,7 @@ class PersonCounterService {
 
   void dispose() {
     print('Disposing PersonCounterService');
-    _channel.sink.close();
+    _channel?.sink.close();
     _audioPlayer.dispose();
     _reconnectionTimer?.cancel();
   }
