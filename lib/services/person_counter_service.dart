@@ -14,6 +14,7 @@ class PersonCounterService {
   int zeroCount = 0;
   Timer? _reconnectionTimer;
   bool _isConnecting = false;
+  bool _isConnected = false; // 새로운 변수: 실제 연결 상태를 추적
   int _reconnectAttempts = 0;
   final Logger _logger = Logger('PersonCounterService');
 
@@ -22,7 +23,7 @@ class PersonCounterService {
   }
 
   void _initWebSocket() {
-    if (_isConnecting) return;
+    if (_isConnecting || _isConnected) return; // 이미 연결 중이거나 연결된 경우 중복 연결 방지
     _isConnecting = true;
 
     try {
@@ -33,28 +34,41 @@ class PersonCounterService {
         _handleMessage,
         onError: (error) {
           _logger.warning('WebSocket error: $error');
-          _scheduleReconnection();
+          _handleDisconnection();
         },
         onDone: () {
           _logger.info('WebSocket connection closed');
-          _scheduleReconnection();
+          _handleDisconnection();
         },
       );
-      _reconnectAttempts = 0;
+      _isConnected = true; // 연결 성공
       _isConnecting = false;
+      _reconnectAttempts = 0;
+      _logger.info('WebSocket connected successfully');
     } catch (e) {
       _logger.severe('Error initializing WebSocket: $e');
+      _handleDisconnection();
+    }
+  }
+
+  void _handleDisconnection() {
+    _isConnected = false;
+    _isConnecting = false;
+    if (!_isConnected) {
+      // 이미 연결이 끊어진 상태에서만 재연결 시도
       _scheduleReconnection();
     }
   }
 
   void _scheduleReconnection() {
     _reconnectionTimer?.cancel();
-    _isConnecting = false;
     final delay = Duration(seconds: _calculateBackoff());
     _reconnectionTimer = Timer(delay, () {
-      _logger.info('Attempting to reconnect...');
-      _initWebSocket();
+      if (!_isConnected && !_isConnecting) {
+        // 연결되지 않은 상태에서만 재연결 시도
+        _logger.info('Attempting to reconnect...');
+        _initWebSocket();
+      }
     });
   }
 
@@ -137,7 +151,7 @@ class PersonCounterService {
   }
 
   void dispose() {
-    print('Disposing PersonCounterService');
+    _logger.info('Disposing PersonCounterService');
     _channel?.sink.close();
     _audioPlayer.dispose();
     _reconnectionTimer?.cancel();
