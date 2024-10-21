@@ -10,18 +10,19 @@ variables:
 .flutter_setup:
   before_script:
     - |
-      if (Test-Path $FLUTTER_PATH) {
+      $ErrorActionPreference = "Stop"
+      if (Test-Path $env:FLUTTER_PATH) {
         Write-Host "Removing existing Flutter directory..."
-        Remove-Item -Path $FLUTTER_PATH -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $env:FLUTTER_PATH -Recurse -Force
       } else {
         Write-Host "Flutter directory does not exist. Skipping removal."
       }
-    - New-Item -Path $FLUTTER_PATH -ItemType Directory -Force
-    - Invoke-WebRequest -Uri "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$FLUTTER_VERSION-stable.zip" -OutFile "flutter.zip"
-    - Expand-Archive -Path "flutter.zip" -DestinationPath $FLUTTER_PATH -Force
-    - $env:Path += ";$FLUTTER_PATH\flutter\bin"
-    - flutter doctor
-    - flutter pub get
+      New-Item -Path $env:FLUTTER_PATH -ItemType Directory -Force
+      Invoke-WebRequest -Uri "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$env:FLUTTER_VERSION-stable.zip" -OutFile "flutter.zip"
+      Expand-Archive -Path "flutter.zip" -DestinationPath $env:FLUTTER_PATH -Force
+      $env:Path += ";$env:FLUTTER_PATH\flutter\bin"
+      flutter doctor
+      flutter pub get
 
 analyze:
   extends: .flutter_setup
@@ -29,8 +30,9 @@ analyze:
   tags:
     - kiosk
   script:
-    - flutter analyze
-    - Write-Host "Flutter analyze completed. Please review and fix the issues if any."
+    - |
+      flutter analyze
+      Write-Host "Flutter analyze completed. Please review and fix the issues if any."
   allow_failure: true
 
 build:
@@ -39,10 +41,11 @@ build:
   tags:
     - kiosk
   script:
-    - flutter config --enable-windows-desktop
-    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
-    - Write-Host "Current working directory: $PWD"
-    - Get-ChildItem -Path build\windows\x64\runner\Release -Recurse
+    - |
+      flutter config --enable-windows-desktop
+      flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
+      Write-Host "Current working directory: $PWD"
+      Get-ChildItem -Path build\windows\x64\runner\Release -Recurse
   artifacts:
     paths:
       - build\windows\x64\runner\Release\*
@@ -55,7 +58,8 @@ deploy:
   tags:
     - kiosk
   script:
-    - echo "Deploying application..."
-    - powershell -File $env:CI_SCRIPTS_PATH -stage deploy
+    - |
+      echo "Deploying application..."
+      powershell -File $env:CI_SCRIPTS_PATH -stage deploy
   only:
     - main
