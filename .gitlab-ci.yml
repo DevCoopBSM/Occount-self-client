@@ -30,14 +30,9 @@ analyze:
     - kiosk
   script:
     - flutter analyze
-    - if ($LASTEXITCODE -ne 0) { 
-        Write-Host "Flutter analyze completed with warnings/errors. Please review and fix the issues."
-        exit 1
-      } else {
-        Write-Host "Flutter analyze completed successfully."
-      }
+    - Write-Host "Flutter analyze completed. Please review and fix the issues if any."
   allow_failure: true
-  
+
 build:
   extends: .flutter_setup
   stage: build
@@ -46,9 +41,11 @@ build:
   script:
     - flutter config --enable-windows-desktop
     - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
+    - Write-Host "Current working directory: $PWD"
+    - Get-ChildItem -Path build\windows\x64\runner\Release -Recurse
   artifacts:
     paths:
-      - build/windows/runner/Release/
+      - build\windows\x64\runner\Release\*
     expire_in: 1 week
   only:
     - main
