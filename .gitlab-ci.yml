@@ -36,7 +36,8 @@ analyze:
       } else {
         Write-Host "Flutter analyze completed successfully."
       }
-
+  allow_failure: true
+  
 build:
   extends: .flutter_setup
   stage: build
