@@ -5,12 +5,15 @@ stages:
 
 variables:
   FLUTTER_VERSION: '3.10.0'
+  FLUTTER_PATH: 'C:\flutter_temp'
 
 .flutter_setup:
   before_script:
+    - Remove-Item -Path $FLUTTER_PATH -Recurse -Force -ErrorAction SilentlyContinue
+    - New-Item -Path $FLUTTER_PATH -ItemType Directory -Force
     - Invoke-WebRequest -Uri "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$FLUTTER_VERSION-stable.zip" -OutFile "flutter.zip"
-    - Expand-Archive -Path "flutter.zip" -DestinationPath "C:\"
-    - $env:Path += ";C:\flutter\bin"
+    - Expand-Archive -Path "flutter.zip" -DestinationPath $FLUTTER_PATH -Force
+    - $env:Path += ";$FLUTTER_PATH\flutter\bin"
     - flutter doctor
     - flutter pub get
 
