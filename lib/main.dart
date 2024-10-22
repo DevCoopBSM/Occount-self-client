@@ -5,9 +5,14 @@ import 'package:counter/ui/barcode/barcode_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:counter/services/person_counter_service.dart';
+import 'package:flutter/services.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 전체 화면 모드 설정
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
   runApp(const MyApp());
 }
 
