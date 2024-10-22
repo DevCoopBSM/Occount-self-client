@@ -41,7 +41,9 @@ if (-not (Test-Path $DeploymentPath)) {
 }
 
 # 3. 아티팩트 복사
-$ArtifactPath = Join-Path $BuildPath "build\windows\x64\runner\Release"
+$ArtifactPath = Join-Path $BuildPath "build_$($env:CI_PIPELINE_ID)"
+Write-Host "Checking artifact directory:"
+Get-ChildItem -Path $ArtifactPath -Recurse
 echo "Copying artifacts from $ArtifactPath to $DeploymentPath"
 Copy-Item -Path "$ArtifactPath\*" -Destination $DeploymentPath -Recurse -Force
 
