@@ -7,6 +7,7 @@ variables:
   FLUTTER_VERSION: '3.10.0'
   FLUTTER_PATH: 'C:\flutter_temp'
   DEPLOYMENT_PATH: 'C:\DeploymentPath'
+  GIT_STRATEGY: fetch
 
 .flutter_setup:
   before_script:
