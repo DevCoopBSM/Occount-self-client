@@ -34,7 +34,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
   List<ItemResponseDto> itemResponses = [];
   List<EventItemResponseDto> eventItemList = [];
   final dbSecure = DbSecure();
-  String token = '';
+  String accessToken = '';
   bool isButtonDisabled = false;
   Color dropdownColor = DevCoopColors.primary;
   String? selectedDropdown = "바코드 없는 상품";
@@ -63,7 +63,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
         savedPoint = sharedPreferences.getInt('userPoint') ?? 0;
         savedStudentName = sharedPreferences.getString('userName') ?? '';
         savedCodeNumber = sharedPreferences.getString('userCode') ?? '';
-        token = sharedPreferences.getString('token') ?? '';
+        accessToken = sharedPreferences.getString('accessToken') ?? '';
       });
     } catch (e) {
       rethrow;
@@ -77,12 +77,11 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
+      final accessToken = prefs.getString('accessToken') ?? '';
       final response = await http.get(
         Uri.parse('${dbSecure.DB_HOST}/kiosk/non-barcode-item'),
         headers: {
-          'Authorization': 'Bearer $token',
+          'Authorization': 'Bearer $accessToken',
         },
       );
 
@@ -119,12 +118,12 @@ class _PaymentsPageState extends State<PaymentsPage> {
   Future<void> fetchItemData(String barcode, int quantity) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+      final accessToken = prefs.getString('accessToken') ?? '';
 
       final response = await http.get(
         Uri.parse('${dbSecure.DB_HOST}/kiosk/item?barcode=$barcode'),
         headers: {
-          'Authorization': 'Bearer $token',
+          'Authorization': 'Bearer $accessToken',
         },
       );
 
@@ -183,8 +182,8 @@ class _PaymentsPageState extends State<PaymentsPage> {
       String apiUrl = '${dbSecure.DB_HOST}/kiosk/executePayments';
 
       // API 요청 함수 호출
-      final response = await executePaymentRequest(
-          apiUrl, token, savedCodeNumber, savedStudentName, totalPrice, items);
+      final response = await executePaymentRequest(apiUrl, accessToken,
+          savedCodeNumber, savedStudentName, totalPrice, items);
 
       // 응답을 UTF-8로 디코딩하여 변수에 저장합니다.
       String responseBody = utf8.decode(response.bodyBytes);
@@ -310,7 +309,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
                               Get.offAllNamed("/barcode"),
                             },
                             child: Text(
-                              token.isEmpty ? "로그인하기" : "$savedStudentName님",
+                              accessToken.isEmpty
+                                  ? "로그인하기"
+                                  : "$savedStudentName님",
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -318,7 +319,9 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             ),
                           ),
                           Text(
-                            token.isEmpty ? "" : "${savedPoint.toString()}원",
+                            accessToken.isEmpty
+                                ? ""
+                                : "${savedPoint.toString()}원",
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,

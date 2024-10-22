@@ -83,11 +83,11 @@ class LoginController {
           return; // 리다이렉션 후 함수 종료
         }
 
-        String token = responseBody['token'] ?? '';
+        String accessToken = responseBody['token'] ?? '';
         String userName = responseBody['userName'] ?? '';
         int userPoint = responseBody['userPoint'] ?? 0;
 
-        saveUserData(token, userCode, userPoint, userName);
+        saveUserData(accessToken, userCode, userPoint, userName);
         Get.offAllNamed('/check');
       } else {
         Get.snackbar("Error", "학생증 번호 또는 핀 번호가 잘못되었습니다",
