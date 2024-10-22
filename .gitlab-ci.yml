@@ -37,17 +37,13 @@ build:
   tags:
     - kiosk
   script:
-    - $buildDir = Join-Path $env:CI_PROJECT_DIR "build_$($env:CI_PIPELINE_ID)"
     - flutter config --enable-windows-desktop
     - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
     - flutter build apk --release --dart-define=DB_HOST=$env:DB_HOST
-    - New-Item -ItemType Directory -Force -Path $buildDir
-    - Copy-Item -Path "build\windows\x64\runner\Release\*" -Destination $buildDir -Recurse -Force
-    - Copy-Item -Path "build\app\outputs\apk\release\app-release.apk" -Destination $buildDir -Force
-    - Get-ChildItem -Path $buildDir -Recurse # 복사된 파일 확인
   artifacts:
     paths:
-      - build_*
+      - build/windows/x64/runner/Release
+      - build/app/outputs/apk/release/app-release.apk
     expire_in: 1 week
   only:
     - main
@@ -57,7 +53,24 @@ deploy:
   tags:
     - kiosk
   script:
-    - New-Item -ItemType Directory -Force -Path $env:DEPLOYMENT_PATH
-    - powershell -File $env:CI_SCRIPTS_PATH -stage deploy
+    - |
+      # 배포 디렉토리 준비
+      if (-not (Test-Path $env:DEPLOYMENT_PATH)) {
+        New-Item -ItemType Directory -Force -Path $env:DEPLOYMENT_PATH
+        Write-Host "Created deployment directory: $env:DEPLOYMENT_PATH"
+      } else {
+        Write-Host "Cleaning existing deployment directory..."
+        Remove-Item -Path "$env:DEPLOYMENT_PATH\*" -Recurse -Force
+      }
+
+      # 아티팩트 복사
+      Write-Host "Copying Windows build artifacts to $env:DEPLOYMENT_PATH"
+      Copy-Item -Path "build/windows/x64/runner/Release/*" -Destination $env:DEPLOYMENT_PATH -Recurse -Force
+
+      Write-Host "Copying APK to $env:DEPLOYMENT_PATH"
+      Copy-Item -Path "build/app/outputs/apk/release/app-release.apk" -Destination $env:DEPLOYMENT_PATH -Force
+
+      # PowerShell 스크립트 실행
+      powershell -File "$env:CI_PROJECT_DIR/deploy.ps1" -DeploymentPath $env:DEPLOYMENT_PATH
   only:
     - main
