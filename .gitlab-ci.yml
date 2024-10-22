@@ -36,11 +36,14 @@ build:
   tags:
     - kiosk
   script:
+    - $buildDir = "build_$($env:CI_PIPELINE_ID)"
     - flutter config --enable-windows-desktop
-    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
+    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST --output-dir=$buildDir
+    - flutter build apk --release --dart-define=DB_HOST=$env:DB_HOST
   artifacts:
     paths:
-      - build\windows\x64\runner\Release\*
+      - $buildDir\windows\runner\Release\*
+      - build\app\outputs\flutter-apk\app-release.apk
     expire_in: 1 week
   only:
     - main
