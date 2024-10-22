@@ -77,7 +77,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('jwt_token') ?? '';
+      final token = prefs.getString('token') ?? '';
 
       final response = await http.get(
         Uri.parse('${dbSecure.DB_HOST}/kiosk/non-barcode-item'),
@@ -118,11 +118,12 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
   Future<void> fetchItemData(String barcode, int quantity) async {
     try {
-      String apiUrl = '${dbSecure.DB_HOST}/kiosk';
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
       final response = await http.get(
-        Uri.parse('$apiUrl/itemSelect?barcodes=$barcode'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
+        Uri.parse('${dbSecure.DB_HOST}/kiosk/item?barcode=$barcode'),
+        headers: {
           'Authorization': 'Bearer $token',
         },
       );

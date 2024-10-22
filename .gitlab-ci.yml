@@ -37,7 +37,7 @@ build:
   tags:
     - kiosk
   script:
-    - $buildDir = "build_$($env:CI_PIPELINE_ID)"
+    - $buildDir = Join-Path $env:CI_PROJECT_DIR "build_$($env:CI_PIPELINE_ID)"
     - flutter config --enable-windows-desktop
     - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
     - flutter build apk --release --dart-define=DB_HOST=$env:DB_HOST
@@ -47,7 +47,7 @@ build:
     - Get-ChildItem -Path $buildDir -Recurse # 복사된 파일 확인
   artifacts:
     paths:
-      - $buildDir\*
+      - build_*
     expire_in: 1 week
   only:
     - main
