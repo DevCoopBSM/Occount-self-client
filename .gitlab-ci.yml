@@ -6,20 +6,17 @@ stages:
 variables:
   FLUTTER_VERSION: '3.10.0'
   FLUTTER_PATH: 'C:\flutter_temp'
+  DEPLOYMENT_PATH: 'C:\DeploymentPath'
 
 .flutter_setup:
   before_script:
     - |
       $ErrorActionPreference = "Stop"
-      if (Test-Path $env:FLUTTER_PATH) {
-        Write-Host "Removing existing Flutter directory..."
-        Remove-Item -Path $env:FLUTTER_PATH -Recurse -Force
-      } else {
-        Write-Host "Flutter directory does not exist. Skipping removal."
+      if (!(Test-Path $env:FLUTTER_PATH)) {
+        New-Item -Path $env:FLUTTER_PATH -ItemType Directory -Force
+        Invoke-WebRequest -Uri "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$env:FLUTTER_VERSION-stable.zip" -OutFile "flutter.zip"
+        Expand-Archive -Path "flutter.zip" -DestinationPath $env:FLUTTER_PATH -Force
       }
-      New-Item -Path $env:FLUTTER_PATH -ItemType Directory -Force
-      Invoke-WebRequest -Uri "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$env:FLUTTER_VERSION-stable.zip" -OutFile "flutter.zip"
-      Expand-Archive -Path "flutter.zip" -DestinationPath $env:FLUTTER_PATH -Force
       $env:Path += ";$env:FLUTTER_PATH\flutter\bin"
       flutter doctor
       flutter pub get
@@ -30,9 +27,7 @@ analyze:
   tags:
     - kiosk
   script:
-    - |
-      flutter analyze
-      Write-Host "Flutter analyze completed. Please review and fix the issues if any."
+    - flutter analyze
   allow_failure: true
 
 build:
@@ -41,11 +36,8 @@ build:
   tags:
     - kiosk
   script:
-    - |
-      flutter config --enable-windows-desktop
-      flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
-      Write-Host "Current working directory: $PWD"
-      Get-ChildItem -Path build\windows\x64\runner\Release -Recurse
+    - flutter config --enable-windows-desktop
+    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
   artifacts:
     paths:
       - build\windows\x64\runner\Release\*
@@ -58,8 +50,6 @@ deploy:
   tags:
     - kiosk
   script:
-    - |
-      echo "Deploying application..."
-      powershell -File $env:CI_SCRIPTS_PATH -stage deploy
+    - powershell -File $env:CI_SCRIPTS_PATH -stage deploy
   only:
     - main
