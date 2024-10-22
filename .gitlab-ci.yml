@@ -39,11 +39,13 @@ build:
   script:
     - $buildDir = "build_$($env:CI_PIPELINE_ID)"
     - flutter config --enable-windows-desktop
-    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST --output-dir=$buildDir
+    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
     - flutter build apk --release --dart-define=DB_HOST=$env:DB_HOST
+    - New-Item -ItemType Directory -Force -Path $buildDir
+    - Move-Item -Path build\windows\runner\Release\* -Destination $buildDir -Force
   artifacts:
     paths:
-      - $buildDir\windows\runner\Release\*
+      - $buildDir\*
       - build\app\outputs\flutter-apk\app-release.apk
     expire_in: 1 week
   only:

@@ -63,7 +63,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
         savedPoint = sharedPreferences.getInt('userPoint') ?? 0;
         savedStudentName = sharedPreferences.getString('userName') ?? '';
         savedCodeNumber = sharedPreferences.getString('userCode') ?? '';
-        token = sharedPreferences.getString('accessToken') ?? '';
+        token = sharedPreferences.getString('token') ?? '';
       });
     } catch (e) {
       rethrow;
@@ -72,12 +72,19 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
   Future<void> fetchNonBarcodeItems() async {
     setState(() {
-      isLoading = true; // 로딩 중 상태를 UI에 반영
+      isLoading = true;
     });
 
     try {
-      final response = await http
-          .get(Uri.parse('${dbSecure.DB_HOST}/kiosk/non-barcode-item'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token') ?? '';
+
+      final response = await http.get(
+        Uri.parse('${dbSecure.DB_HOST}/kiosk/non-barcode-item'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
 
       if (response.statusCode == 200) {
         List<dynamic> jsonResponse = json.decode(response.body);
