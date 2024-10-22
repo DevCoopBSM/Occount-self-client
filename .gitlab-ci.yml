@@ -41,13 +41,13 @@ build:
     - flutter config --enable-windows-desktop
     - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
     - flutter build apk --release --dart-define=DB_HOST=$env:DB_HOST
-    - Get-ChildItem -Path build -Recurse # 이 줄을 추가하세요
     - New-Item -ItemType Directory -Force -Path $buildDir
-    - Move-Item -Path build\windows\runner\Release\* -Destination $buildDir -Force
+    - Copy-Item -Path "build\windows\x64\runner\Release\*" -Destination $buildDir -Recurse -Force
+    - Copy-Item -Path "build\app\outputs\apk\release\app-release.apk" -Destination $buildDir -Force
+    - Get-ChildItem -Path $buildDir -Recurse # 복사된 파일 확인
   artifacts:
     paths:
       - $buildDir\*
-      - build\app\outputs\flutter-apk\app-release.apk
     expire_in: 1 week
   only:
     - main
@@ -57,6 +57,7 @@ deploy:
   tags:
     - kiosk
   script:
+    - New-Item -ItemType Directory -Force -Path $env:DEPLOYMENT_PATH
     - powershell -File $env:CI_SCRIPTS_PATH -stage deploy
   only:
     - main
