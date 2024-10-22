@@ -41,6 +41,7 @@ build:
     - flutter config --enable-windows-desktop
     - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
     - flutter build apk --release --dart-define=DB_HOST=$env:DB_HOST
+    - Get-ChildItem -Path build -Recurse # 이 줄을 추가하세요
     - New-Item -ItemType Directory -Force -Path $buildDir
     - Move-Item -Path build\windows\runner\Release\* -Destination $buildDir -Force
   artifacts:
