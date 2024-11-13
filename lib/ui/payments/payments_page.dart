@@ -405,107 +405,119 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                   )
                                 : selectedDropdown == "바코드 없는 상품"
                                     ? Expanded(
-                                        child: SingleChildScrollView(
-                                          child: ListView.builder(
-                                            shrinkWrap: true,
-                                            physics:
-                                                const NeverScrollableScrollPhysics(),
-                                            itemCount: futureItems.length,
-                                            itemBuilder: (context, index) {
-                                              return SingleChildScrollView(
-                                                child: Container(
-                                                  margin: const EdgeInsets.only(
-                                                      top: 10),
-                                                  padding:
-                                                      const EdgeInsets.all(10),
-                                                  decoration: BoxDecoration(
-                                                    color: isDropDownClick
-                                                        ? dropdownColor
-                                                        : index % 2 == 0
-                                                            ? DevCoopColors
-                                                                .primaryLight
-                                                            : DevCoopColors
-                                                                .grey,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10),
-                                                  ),
-                                                  child: GestureDetector(
-                                                    onTap: () {
-                                                      setState(() {
-                                                        // 이미 존재하는 아이템인지 확인
-                                                        bool itemExists = false;
-                                                        for (var response
-                                                            in itemResponses) {
-                                                          if (response
-                                                                  .itemName ==
-                                                              futureItems[index]
-                                                                  .itemName) {
-                                                            response.quantity +=
-                                                                1; // 수량 증가
+                                        child: LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            return Container(
+                                              height: constraints.maxHeight,
+                                              child: SingleChildScrollView(
+                                                child: ListView.builder(
+                                                  shrinkWrap: true,
+                                                  physics:
+                                                      const NeverScrollableScrollPhysics(),
+                                                  itemCount: futureItems.length,
+                                                  itemBuilder:
+                                                      (context, index) {
+                                                    return GestureDetector(
+                                                      onTap: () {
+                                                        setState(() {
+                                                          bool itemExists =
+                                                              false;
+                                                          for (var response
+                                                              in itemResponses) {
+                                                            if (response
+                                                                    .itemName ==
+                                                                futureItems[
+                                                                        index]
+                                                                    .itemName) {
+                                                              response
+                                                                  .quantity += 1;
+                                                              totalPrice +=
+                                                                  futureItems[
+                                                                          index]
+                                                                      .itemPrice;
+                                                              itemExists = true;
+                                                              break;
+                                                            }
+                                                          }
+                                                          if (!itemExists) {
+                                                            itemResponses.add(
+                                                              ItemResponseDto(
+                                                                itemName:
+                                                                    futureItems[
+                                                                            index]
+                                                                        .itemName,
+                                                                itemPrice:
+                                                                    futureItems[
+                                                                            index]
+                                                                        .itemPrice,
+                                                                itemId: futureItems[
+                                                                        index]
+                                                                    .itemName,
+                                                                quantity: 1,
+                                                                type: 'NONE',
+                                                              ),
+                                                            );
                                                             totalPrice +=
                                                                 futureItems[
                                                                         index]
-                                                                    .itemPrice; // 총 가격 업데이트
-                                                            itemExists = true;
-                                                            break;
+                                                                    .itemPrice;
                                                           }
-                                                        }
-                                                        // 아이템이 존재하지 않으면 새로 추가
-                                                        if (!itemExists) {
-                                                          itemResponses.add(
-                                                            ItemResponseDto(
-                                                              itemName:
-                                                                  futureItems[
-                                                                          index]
-                                                                      .itemName,
-                                                              itemPrice:
-                                                                  futureItems[
-                                                                          index]
-                                                                      .itemPrice,
-                                                              itemId:
-                                                                  futureItems[
-                                                                          index]
-                                                                      .itemName,
-                                                              quantity: 1,
-                                                              type: 'NONE',
-                                                            ),
-                                                          );
-                                                          totalPrice +=
+                                                        });
+                                                      },
+                                                      child: Container(
+                                                        margin: const EdgeInsets
+                                                            .only(top: 10),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(10),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: isDropDownClick
+                                                              ? dropdownColor
+                                                              : index % 2 == 0
+                                                                  ? DevCoopColors
+                                                                      .primaryLight
+                                                                  : DevCoopColors
+                                                                      .grey,
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(10),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .spaceBetween,
+                                                          children: [
+                                                            Text(
                                                               futureItems[index]
-                                                                  .itemPrice; // 총 가격 업데이트
-                                                        }
-                                                      });
-                                                    },
-                                                    child: Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
-                                                      children: [
-                                                        Text(
-                                                          futureItems[index]
-                                                              .itemName,
-                                                          style: const TextStyle(
-                                                              fontSize: 20,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold),
+                                                                  .itemName,
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontSize: 20,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                            Text(
+                                                              '${futureItems[index].itemPrice}원',
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontSize: 20,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ),
-                                                        Text(
-                                                          '${futureItems[index].itemPrice}원',
-                                                          style: const TextStyle(
-                                                              fontSize: 20,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
+                                                      ),
+                                                    );
+                                                  },
                                                 ),
-                                              );
-                                            },
-                                          ),
+                                              ),
+                                            );
+                                          },
                                         ),
                                       )
                                     : const Text(
