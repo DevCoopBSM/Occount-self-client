@@ -1071,13 +1071,15 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           json.decode(utf8.decode(statusResponse.bodyBytes));
 
                       switch (statusData['status']) {
-                        case 'USED':
+                        case 'COMPLETED':
                           dialogActive = false;
                           timer.cancel();
                           Navigator.pop(dialogContext);
                           String message = "충전이 완료되었습니다.";
                           if (statusData['chargedPoint'] != null) {
                             message += "\n충전금액: ${statusData['chargedPoint']}원";
+                          } else if (statusData['amount'] != null) {
+                            message += "\n충전금액: ${statusData['amount']}원";
                           }
                           if (statusData['afterPoint'] != null) {
                             message += "\n현재 잔액: ${statusData['afterPoint']}원";
