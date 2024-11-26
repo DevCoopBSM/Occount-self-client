@@ -49,18 +49,30 @@ class _PaymentsPageState extends State<PaymentsPage> {
   @override
   void initState() {
     super.initState();
-    fetchNonBarcodeItems();
-
-    setState(() {
-      loadUserData();
-    });
+    _initializeData();
   }
 
-  void loadUserData() async {
+  Future<void> _initializeData() async {
+    await _loadAccessToken();
+    await fetchNonBarcodeItems();
+    await loadUserData();
+  }
+
+  Future<void> _loadAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      accessToken = prefs.getString('accessToken') ?? '';
+    });
+
+    if (accessToken.isEmpty) {
+      Get.offAllNamed("/"); // 토큰이 없으면 로그인 페이지로
+    }
+  }
+
+  Future<void> loadUserData() async {
     try {
-      // 서버에서 최신 사용자 정보 조회
       final response = await http.get(
-        Uri.parse('${dbSecure.DB_HOST}/user/user-info'),
+        Uri.parse('${dbSecure.DB_HOST}/kiosk/user/user-info'),
         headers: {
           'Authorization': 'Bearer $accessToken',
         },
@@ -69,7 +81,6 @@ class _PaymentsPageState extends State<PaymentsPage> {
       if (response.statusCode == 200) {
         final responseData = json.decode(utf8.decode(response.bodyBytes));
 
-        // SharedPreferences 업데이트
         SharedPreferences sharedPreferences =
             await SharedPreferences.getInstance();
         await sharedPreferences.setInt(
@@ -77,12 +88,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
         await sharedPreferences.setString(
             'userName', responseData['userName'] ?? '');
 
-        // 상태 업데이트
         setState(() {
           savedPoint = responseData['userPoint'] ?? 0;
           savedStudentName = responseData['userName'] ?? '';
           savedCodeNumber = sharedPreferences.getString('userCode') ?? '';
-          accessToken = sharedPreferences.getString('accessToken') ?? '';
         });
       }
     } catch (e) {
@@ -712,85 +721,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                           ),
                                         )
                                       ]),
-                                      onTap: () {
-                                        // 먼저 안내 팝업을 보여줍니다
-                                        showDialog(
-                                          context: context,
-                                          builder: (BuildContext context) {
-                                            return AlertDialog(
-                                              title: const Text(
-                                                "셀프 충전 안내",
-                                                style: TextStyle(
-                                                  fontSize: 24,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              content: const Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    "1. 카드리더기에 카드를 인식시켜 주세요",
-                                                    style: TextStyle(
-                                                        fontSize: 16,
-                                                        height: 1.5),
-                                                  ),
-                                                  Text(
-                                                    "2. 원하시는 금액만큼 결제해 주세요",
-                                                    style: TextStyle(
-                                                        fontSize: 16,
-                                                        height: 1.5),
-                                                  ),
-                                                  SizedBox(height: 16),
-                                                  Text(
-                                                    "* 충전은 최대 2분 이내에 완료해 주세요",
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      color:
-                                                          DevCoopColors.error,
-                                                      height: 1.5,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () {
-                                                    Navigator.of(context).pop();
-                                                  },
-                                                  child: const Text(
-                                                    "취소",
-                                                    style: TextStyle(
-                                                      color:
-                                                          DevCoopColors.error,
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                                TextButton(
-                                                  onPressed: () {
-                                                    Navigator.of(context).pop();
-                                                    handleSelfCharge(); // 충전 프로세스 시작
-                                                  },
-                                                  child: const Text(
-                                                    "충전하기",
-                                                    style: TextStyle(
-                                                      color:
-                                                          DevCoopColors.primary,
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          },
-                                        );
-                                      },
+                                      onTap: handleSelfCharge,
                                     ),
                                     const SizedBox(width: 20),
                                     mainTextButton(
@@ -1070,11 +1001,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
   }
 
   Future<void> handleSelfCharge() async {
-    bool isCancelled = false;
-    Timer? timer;
-
     try {
-      // 초기 충전 대기열 등록
       final standbyResponse = await http.post(
         Uri.parse(
             'https://occount.bsm-aripay.kr/api/v2/pg/self-charge/standby'),
@@ -1091,153 +1018,151 @@ class _PaymentsPageState extends State<PaymentsPage> {
       final standbyData = json.decode(utf8.decode(standbyResponse.bodyBytes));
       final String standbyToken = standbyData['standbyToken'];
 
-      // 진행 상태 표시 대화상자
+      if (!mounted) return;
+
+      bool dialogActive = true;
+      final startTime = DateTime.now();
+      Timer? timer;
+
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (BuildContext context) {
-          double progress = 0.0;
+        builder: (BuildContext dialogContext) {
+          return WillPopScope(
+            onWillPop: () async => false,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                double progress =
+                    DateTime.now().difference(startTime).inSeconds / 120;
 
-          return StatefulBuilder(
-            builder: (context, setState) {
-              timer =
-                  Timer.periodic(const Duration(milliseconds: 1000), (timer) {
-                if (progress >= 1.0) {
-                  timer.cancel();
-                } else {
+                timer?.cancel();
+                timer =
+                    Timer.periodic(const Duration(seconds: 1), (timer) async {
+                  if (!dialogActive) {
+                    timer.cancel();
+                    return;
+                  }
+
+                  final elapsedSeconds =
+                      DateTime.now().difference(startTime).inSeconds;
+                  if (elapsedSeconds >= 120) {
+                    dialogActive = false;
+                    timer.cancel();
+                    Navigator.pop(dialogContext);
+                    showPaymentsPopup("충전 시간이 초과되었습니다.", true);
+                    return;
+                  }
+
                   setState(() {
-                    progress += 1 / 120; // 2분 = 120초
+                    progress = elapsedSeconds / 120;
                   });
-                }
-              });
 
-              return AlertDialog(
-                title: const Text(
-                  "충전 대기중",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                  try {
+                    final statusResponse = await http.get(
+                      Uri.parse(
+                          'https://occount.bsm-aripay.kr/api/v2/pg/self-charge/status?standbyToken=$standbyToken'),
+                      headers: {
+                        'Authorization': 'Bearer $accessToken',
+                      },
+                    );
+
+                    if (statusResponse.statusCode == 200) {
+                      final statusData =
+                          json.decode(utf8.decode(statusResponse.bodyBytes));
+
+                      switch (statusData['status']) {
+                        case 'USED':
+                          dialogActive = false;
+                          timer.cancel();
+                          Navigator.pop(dialogContext);
+                          String message = "충전이 완료되었습니다.";
+                          if (statusData['chargedPoint'] != null) {
+                            message += "\n충전금액: ${statusData['chargedPoint']}원";
+                          }
+                          if (statusData['afterPoint'] != null) {
+                            message += "\n현재 잔액: ${statusData['afterPoint']}원";
+                          }
+                          showPaymentsPopup(message, false);
+                          loadUserData();
+                          break;
+                        case 'EXPIRED':
+                        case 'NONE':
+                          dialogActive = false;
+                          timer.cancel();
+                          Navigator.pop(dialogContext);
+                          showPaymentsPopup(
+                            statusData['status'] == 'EXPIRED'
+                                ? "충전 요청이 만료되었습니다."
+                                : "충전 요청을 찾을 수 없습니다.",
+                            true,
+                          );
+                          break;
+                      }
+                    }
+                  } catch (e) {
+                    dialogActive = false;
+                    timer.cancel();
+                    Navigator.pop(dialogContext);
+                    showPaymentsPopup("충전 중 오류가 발생했습니다.", true);
+                  }
+                });
+
+                return AlertDialog(
+                  title: const Text(
+                    "충전 대기중",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      "충전이 완료될 때까지 기다려주세요",
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 20),
-                    LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: DevCoopColors.grey,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        DevCoopColors.primary,
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "충전이 완료될 때까지 기다려주세요\n2분 이내에 단말기에서 충전해주세요",
+                        style: TextStyle(fontSize: 16),
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      "${(120 - (progress * 120)).toInt()}초 남음",
-                      style: const TextStyle(fontSize: 14),
+                      const SizedBox(height: 20),
+                      LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: DevCoopColors.grey,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          DevCoopColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        "${120 - (progress * 120).toInt()}초 남음",
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        dialogActive = false;
+                        timer?.cancel();
+                        Navigator.pop(dialogContext);
+                      },
+                      child: const Text(
+                        "취소",
+                        style: TextStyle(
+                          color: DevCoopColors.error,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      isCancelled = true;
-                      timer?.cancel();
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text(
-                      "취소",
-                      style: TextStyle(
-                        color: DevCoopColors.error,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+                );
+              },
+            ),
           );
         },
       );
-
-      // 2분 동안 1초마다 충전 상태 확인
-      for (int i = 0; i < 120 && !isCancelled; i++) {
-        await Future.delayed(const Duration(seconds: 1));
-
-        final statusResponse = await http.get(
-          Uri.parse(
-              'https://occount.bsm-aripay.kr/api/v2/pg/self-charge/status'),
-          headers: {
-            'Authorization': 'Bearer $accessToken',
-          },
-        );
-
-        if (statusResponse.statusCode == 200) {
-          final statusData = json.decode(utf8.decode(statusResponse.bodyBytes));
-
-          switch (statusData['status']) {
-            case 'USED':
-              timer?.cancel();
-              Navigator.pop(context); // 진행 상태 대화상자 닫기
-
-              // chargedPoint와 afterPoint가 있는 경우의 메시지 처리
-              String message = "충전이 완료되었습니다.";
-              if (statusData['chargedPoint'] != null) {
-                message += "\n충전금액: ${statusData['chargedPoint']}원";
-              }
-              if (statusData['afterPoint'] != null) {
-                message += "\n현재 잔액: ${statusData['afterPoint']}원";
-              }
-
-              showPaymentsPopup(
-                message,
-                false,
-              );
-              // 포인트 갱신을 위해 사용자 정보 다시 로드
-              loadUserData();
-              return;
-
-            case 'EXPIRED':
-              timer?.cancel();
-              Navigator.pop(context);
-              showPaymentsPopup(
-                "충전 요청이 만료되었습니다.",
-                true,
-              );
-              return;
-
-            case 'NONE':
-              timer?.cancel();
-              Navigator.pop(context);
-              showPaymentsPopup(
-                "충전 요청을 찾을 수 없습니다.",
-                true,
-              );
-              return;
-
-            case 'PENDING':
-              // 아직 대기 중이므로 계속 진행
-              continue;
-          }
-        }
-      }
-
-      // 2분 초과 또는 취소 시
-      if (!isCancelled) {
-        Navigator.pop(context); // 진행 상태 대화상자 닫기
-        showPaymentsPopup("충전 시간이 초과되었습니다.", true);
-      }
     } catch (e) {
-      timer?.cancel();
-      if (!isCancelled) {
-        Navigator.pop(context); // 진행 상태 대화상자 닫기
-        showPaymentsPopup("충전 중 오류가 발생했습니다.", true);
-      }
-      print(e);
+      showPaymentsPopup("충전 중 오류가 발생했습니다.", true);
     }
   }
 }
