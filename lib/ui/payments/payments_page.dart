@@ -686,14 +686,92 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                           weight: 20,
                                         ),
                                         Text(
-                                          "충전",
+                                          "셀프 충전",
                                           style: TextStyle(
                                             fontSize: 20,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         )
                                       ]),
-                                      onTap: () => handleSelfCharge(),
+                                      onTap: () {
+                                        // 먼저 안내 팝업을 보여줍니다
+                                        showDialog(
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return AlertDialog(
+                                              title: const Text(
+                                                "셀프 충전 안내",
+                                                style: TextStyle(
+                                                  fontSize: 24,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              content: const Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    "1. 카드리더기에 카드를 인식시켜 주세요",
+                                                    style: TextStyle(
+                                                        fontSize: 16,
+                                                        height: 1.5),
+                                                  ),
+                                                  Text(
+                                                    "2. 원하시는 금액만큼 결제해 주세요",
+                                                    style: TextStyle(
+                                                        fontSize: 16,
+                                                        height: 1.5),
+                                                  ),
+                                                  SizedBox(height: 16),
+                                                  Text(
+                                                    "* 충전은 최대 2분 이내에 완료해 주세요",
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      color:
+                                                          DevCoopColors.error,
+                                                      height: 1.5,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.of(context).pop();
+                                                  },
+                                                  child: const Text(
+                                                    "취소",
+                                                    style: TextStyle(
+                                                      color:
+                                                          DevCoopColors.error,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.of(context).pop();
+                                                    handleSelfCharge(); // 충전 프로세스 시작
+                                                  },
+                                                  child: const Text(
+                                                    "충전하기",
+                                                    style: TextStyle(
+                                                      color:
+                                                          DevCoopColors.primary,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      },
                                     ),
                                     const SizedBox(width: 20),
                                     mainTextButton(
@@ -937,7 +1015,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         }
                       }
 
-                      // 상품 삭제 ���튼 클릭 시 상품 총 가격 감소
+                      // 상품 삭제 버튼 클릭 시 상품 총 가격 감소
                       totalPrice > 0
                           ? totalPrice -= itemResponses
                               .firstWhere(
