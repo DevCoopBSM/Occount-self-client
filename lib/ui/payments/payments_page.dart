@@ -58,16 +58,35 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
   void loadUserData() async {
     try {
-      SharedPreferences sharedPreferences =
-          await SharedPreferences.getInstance();
-      setState(() {
-        savedPoint = sharedPreferences.getInt('userPoint') ?? 0;
-        savedStudentName = sharedPreferences.getString('userName') ?? '';
-        savedCodeNumber = sharedPreferences.getString('userCode') ?? '';
-        accessToken = sharedPreferences.getString('accessToken') ?? '';
-      });
+      // 서버에서 최신 사용자 정보 조회
+      final response = await http.get(
+        Uri.parse('${dbSecure.DB_HOST}/user/user-info'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(utf8.decode(response.bodyBytes));
+
+        // SharedPreferences 업데이트
+        SharedPreferences sharedPreferences =
+            await SharedPreferences.getInstance();
+        await sharedPreferences.setInt(
+            'userPoint', responseData['userPoint'] ?? 0);
+        await sharedPreferences.setString(
+            'userName', responseData['userName'] ?? '');
+
+        // 상태 업데이트
+        setState(() {
+          savedPoint = responseData['userPoint'] ?? 0;
+          savedStudentName = responseData['userName'] ?? '';
+          savedCodeNumber = sharedPreferences.getString('userCode') ?? '';
+          accessToken = sharedPreferences.getString('accessToken') ?? '';
+        });
+      }
     } catch (e) {
-      rethrow;
+      print('사용자 정보 갱신 실패: $e');
     }
   }
 
@@ -1199,6 +1218,10 @@ class _PaymentsPageState extends State<PaymentsPage> {
                 true,
               );
               return;
+
+            case 'PENDING':
+              // 아직 대기 중이므로 계속 진행
+              continue;
           }
         }
       }
