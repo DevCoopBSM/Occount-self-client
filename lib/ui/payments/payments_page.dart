@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:counter/controller/payments_api.dart';
@@ -657,9 +658,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                         });
                                       },
                                     ),
-                                    const SizedBox(
-                                      width: 20,
-                                    ),
+                                    const SizedBox(width: 20),
                                     mainTextButton(
                                       text: const Row(children: [
                                         Icon(
@@ -679,9 +678,24 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                         Get.offAllNamed("/");
                                       },
                                     ),
-                                    const SizedBox(
-                                      width: 20,
+                                    const SizedBox(width: 20),
+                                    mainTextButton(
+                                      text: const Row(children: [
+                                        Icon(
+                                          Icons.account_balance_wallet,
+                                          weight: 20,
+                                        ),
+                                        Text(
+                                          "충전",
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      ]),
+                                      onTap: () => handleSelfCharge(),
                                     ),
+                                    const SizedBox(width: 20),
                                     mainTextButton(
                                       text: const Row(children: [
                                         Icon(
@@ -701,13 +715,11 @@ class _PaymentsPageState extends State<PaymentsPage> {
                                         setState(() {
                                           isButtonDisabled = true;
                                         });
-
                                         await _handlePayment();
-
                                         setState(() {
                                           isButtonDisabled = true;
                                         });
-                                      }, 5000), // 5초 동안 버튼 비활성화
+                                      }, 5000),
                                     ),
                                   ],
                                 )
@@ -925,7 +937,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                         }
                       }
 
-                      // 상품 삭제 버튼 클릭 시 상품 총 가격 감소
+                      // 상품 삭제 ���튼 클릭 시 상품 총 가격 감소
                       totalPrice > 0
                           ? totalPrice -= itemResponses
                               .firstWhere(
@@ -958,5 +970,173 @@ class _PaymentsPageState extends State<PaymentsPage> {
               ),
       ],
     );
+  }
+
+  Future<void> handleSelfCharge() async {
+    bool isCancelled = false;
+    Timer? timer;
+
+    try {
+      // 초기 충전 대기열 등록
+      final standbyResponse = await http.post(
+        Uri.parse(
+            'https://occount.bsm-aripay.kr/api/v2/pg/self-charge/standby'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (standbyResponse.statusCode != 200) {
+        showPaymentsPopup("충전 대기 등록에 실패했습니다.", true);
+        return;
+      }
+
+      final standbyData = json.decode(utf8.decode(standbyResponse.bodyBytes));
+      final String standbyToken = standbyData['standbyToken'];
+
+      // 진행 상태 표시 대화상자
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          double progress = 0.0;
+
+          return StatefulBuilder(
+            builder: (context, setState) {
+              timer =
+                  Timer.periodic(const Duration(milliseconds: 1000), (timer) {
+                if (progress >= 1.0) {
+                  timer.cancel();
+                } else {
+                  setState(() {
+                    progress += 1 / 120; // 2분 = 120초
+                  });
+                }
+              });
+
+              return AlertDialog(
+                title: const Text(
+                  "충전 대기중",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "충전이 완료될 때까지 기다려주세요",
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
+                    LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: DevCoopColors.grey,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        DevCoopColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "${(120 - (progress * 120)).toInt()}초 남음",
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      isCancelled = true;
+                      timer?.cancel();
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text(
+                      "취소",
+                      style: TextStyle(
+                        color: DevCoopColors.error,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      // 2분 동안 1초마다 충전 상태 확인
+      for (int i = 0; i < 120 && !isCancelled; i++) {
+        await Future.delayed(const Duration(seconds: 1));
+
+        final statusResponse = await http.get(
+          Uri.parse(
+              'https://occount.bsm-aripay.kr/api/v2/pg/self-charge/status'),
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+        );
+
+        if (statusResponse.statusCode == 200) {
+          final statusData = json.decode(utf8.decode(statusResponse.bodyBytes));
+
+          switch (statusData['status']) {
+            case 'USED':
+              timer?.cancel();
+              Navigator.pop(context); // 진행 상태 대화상자 닫기
+
+              // chargedPoint와 afterPoint가 있는 경우의 메시지 처리
+              String message = "충전이 완료되었습니다.";
+              if (statusData['chargedPoint'] != null) {
+                message += "\n충전금액: ${statusData['chargedPoint']}원";
+              }
+              if (statusData['afterPoint'] != null) {
+                message += "\n현재 잔액: ${statusData['afterPoint']}원";
+              }
+
+              showPaymentsPopup(
+                message,
+                false,
+              );
+              // 포인트 갱신을 위해 사용자 정보 다시 로드
+              loadUserData();
+              return;
+
+            case 'EXPIRED':
+              timer?.cancel();
+              Navigator.pop(context);
+              showPaymentsPopup(
+                "충전 요청이 만료되었습니다.",
+                true,
+              );
+              return;
+
+            case 'NONE':
+              timer?.cancel();
+              Navigator.pop(context);
+              showPaymentsPopup(
+                "충전 요청을 찾을 수 없습니다.",
+                true,
+              );
+              return;
+          }
+        }
+      }
+
+      // 2분 초과 또는 취소 시
+      if (!isCancelled) {
+        Navigator.pop(context); // 진행 상태 대화상자 닫기
+        showPaymentsPopup("충전 시간이 초과되었습니다.", true);
+      }
+    } catch (e) {
+      timer?.cancel();
+      if (!isCancelled) {
+        Navigator.pop(context); // 진행 상태 대화상자 닫기
+        showPaymentsPopup("충전 중 오류가 발생했습니다.", true);
+      }
+      print(e);
+    }
   }
 }
