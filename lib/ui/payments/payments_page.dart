@@ -1036,8 +1036,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                     DateTime.now().difference(startTime).inSeconds / 120;
 
                 timer?.cancel();
-                timer =
-                    Timer.periodic(const Duration(seconds: 1), (timer) async {
+                timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
                   if (!dialogActive) {
                     timer.cancel();
                     return;
@@ -1075,6 +1074,7 @@ class _PaymentsPageState extends State<PaymentsPage> {
                           dialogActive = false;
                           timer.cancel();
                           Navigator.pop(dialogContext);
+
                           String message = "충전이 완료되었습니다.";
                           if (statusData['chargedPoint'] != null) {
                             message += "\n충전금액: ${statusData['chargedPoint']}원";
@@ -1085,7 +1085,14 @@ class _PaymentsPageState extends State<PaymentsPage> {
                             message += "\n현재 잔액: ${statusData['afterPoint']}원";
                           }
                           showPaymentsPopup(message, false);
-                          loadUserData();
+
+                          // 사용자 데이터 갱신
+                          await loadUserData();
+
+                          // 상품 결제 창으로 돌아가기 (금액 갱신 후)
+                          if (context.mounted) {
+                            Navigator.pop(context, true); // 이전 화면에 true 전달
+                          }
                           break;
                         case 'EXPIRED':
                         case 'NONE':
