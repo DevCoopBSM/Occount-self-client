@@ -21,21 +21,20 @@ Future<void> removeUserData() async {
   }
 }
 
-AlertDialog paymentsPopUp(BuildContext context, String message, bool isError) {
-  // Delayed navigation after 3 seconds
-  Future.delayed(const Duration(seconds: 3), () {
-    removeUserData();
+Widget paymentsPopUp(BuildContext context, String message, bool isError,
+    {bool isCharge = false}) {
+  if (!isCharge) {
+    // 결제 팝업인 경우
+    Future.delayed(const Duration(seconds: 3), () {
+      navigateToNextPage();
+      AssetsAudioPlayer.newPlayer().open(
+        Audio('assets/audio/finish.wav'),
+        showNotification: true,
+        autoStart: true,
+      );
+    });
+  }
 
-    // Start the player as soon as the app is displayed.
-
-    navigateToNextPage();
-    AssetsAudioPlayer.newPlayer().open(
-      Audio('assets/audio/finish.wav'),
-      showNotification: true,
-      autoStart: true,
-    );
-  });
-  // 결재 성공, 실패 여부 바로 확인할 수 있게 하기
   return AlertDialog(
     content: Container(
       width: 520,
@@ -44,16 +43,16 @@ AlertDialog paymentsPopUp(BuildContext context, String message, bool isError) {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            isError ? "결재 실패" : "결재 성공",
+            isCharge
+                ? (isError ? "충전 실패" : "충전 성공")
+                : (isError ? "결제 실패" : "결제 성공"),
             style: DevCoopTextStyle.bold_40.copyWith(
               color: isError ? DevCoopColors.error : DevCoopColors.success,
               fontSize: 30,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(
-            height: 20,
-          ),
+          const SizedBox(height: 20),
           Expanded(
             child: SingleChildScrollView(
               child: Text(
@@ -67,15 +66,25 @@ AlertDialog paymentsPopUp(BuildContext context, String message, bool isError) {
               ),
             ),
           ),
-          const SizedBox(
-            height: 20,
-          ),
-          Text(
-            "잠시후에 처음화면으로 돌아갑니다",
-            style: DevCoopTextStyle.medium_30.copyWith(
-              color: DevCoopColors.black,
-            ),
-          ),
+          const SizedBox(height: 20),
+          isCharge
+              ? TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // 충전의 경우 팝업만 닫기
+                  },
+                  child: Text(
+                    "확인",
+                    style: DevCoopTextStyle.medium_30.copyWith(
+                      color: DevCoopColors.primary,
+                    ),
+                  ),
+                )
+              : Text(
+                  "잠시후에 처음화면으로 돌아갑니다",
+                  style: DevCoopTextStyle.medium_30.copyWith(
+                    color: DevCoopColors.black,
+                  ),
+                ),
         ],
       ),
     ),
