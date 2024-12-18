@@ -8,6 +8,7 @@ import '../models/payment_response.dart';
 import 'package:logging/logging.dart';
 import 'dart:async';
 import '../ui/_constant/util/number_format_util.dart';
+import '../exception/payment_exception.dart';
 
 class PaymentService {
   final DbSecure dbSecure;
@@ -104,14 +105,26 @@ class PaymentService {
       final responseData = json.decode(utf8.decode(response.bodyBytes));
       _logger.info('✅ 서버 응답: $responseData');
 
+      if (response.statusCode != 200) {
+        final errorData = json.decode(utf8.decode(response.bodyBytes));
+        throw PaymentException(
+          code: errorData['code'],
+          message: errorData['message'],
+          status: errorData['status'],
+        );
+      }
+
       return PaymentResponse.fromJson(responseData);
     } catch (e) {
       _logger.severe('❌ 결제 요청 에러: $e');
-      return PaymentResponse(
-          success: false,
-          message: e.toString(),
-          type: 'ERROR',
-          remainingPoints: userInfo.point);
+      if (e is PaymentException) {
+        rethrow;
+      }
+      throw PaymentException(
+        code: 'UNKNOWN_ERROR',
+        message: e.toString(),
+        status: 500,
+      );
     }
   }
 

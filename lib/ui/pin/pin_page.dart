@@ -55,9 +55,9 @@ class _PinPageState extends State<PinPage> {
   void _handleSubmit() {
     LoginController loginController = LoginController();
     loginController.login(
-      context,
       widget.codeNumber,
       _pinController.text,
+      context,
     );
   }
 

@@ -12,6 +12,7 @@ import '../ui/payments/widgets/payments_popup.dart';
 import '../ui/_constant/util/number_format_util.dart';
 import 'dart:async';
 import 'package:logging/logging.dart';
+import '../exception/payment_exception.dart';
 
 class PaymentController extends GetxController {
   final PaymentService _paymentService;
@@ -436,15 +437,43 @@ class PaymentController extends GetxController {
   }
 
   void _handlePaymentException(dynamic error) {
-    _logger.log(Level.SEVERE, '❌ 결제 처리 중 예외 발생', error);
-    Get.back();
+    _logger.severe('❌ 결제 처리 중 예외 발생', error);
+    Get.back(); // 진행 중 팝업 닫기
+
+    String errorMessage = "결제 처리 중 오류가 발생했습니다.\n다시 시도해 주세요.";
+
+    if (error is TimeoutException) {
+      errorMessage = "결제 시간이 초과되었습니다.\n다시 시도해주세요.";
+    } else if (error is PaymentException) {
+      switch (error.code) {
+        case 'INVALID_PAYMENT_REQUEST':
+          errorMessage = "잘못된 결제 요청입니다.\n다시 시도해주세요.";
+          break;
+        case 'TRANSACTION_IN_PROGRESS':
+          errorMessage = "이미 진행 중인 거래가 있습니다.\n잠시 후 다시 시도해주세요.";
+          break;
+        case 'PAYMENT_TIMEOUT':
+          errorMessage = "결제 시간이 초과되었습니다.\n다시 시도해주세요.";
+          break;
+        case 'CARD_PAYMENT_FAILED':
+          errorMessage = "카드 결제에 실패했습니다.\n다른 카드로 시도해주세요.";
+          break;
+      }
+    }
+
     Get.dialog(
       paymentResultPopup(
         Get.context!,
-        "결제 처리 중 오류가 발생했습니다.\n다시 시도해 주세요.",
+        errorMessage,
         true,
       ),
       barrierDismissible: false,
     );
+
+    Future.delayed(const Duration(seconds: 2), () {
+      Get.back();
+      clearItems();
+      Get.offAllNamed('/');
+    });
   }
 }
