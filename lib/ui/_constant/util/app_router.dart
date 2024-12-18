@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import '../../../bindings/app_binding.dart';
 import '../../../controller/payment_controller.dart';
 import '../../../service/payment_service.dart';
+import '../../../service/payment_calculation_service.dart';
 
 List<GetPage> appRouter = [
   GetPage(
@@ -27,9 +28,15 @@ List<GetPage> appRouter = [
     name: "/payments",
     page: () => const PaymentsPage(),
     binding: BindingsBuilder(() {
+      if (!Get.isRegistered<PaymentCalculationService>()) {
+        Get.put(PaymentCalculationService());
+      }
       if (!Get.isRegistered<PaymentController>()) {
         Get.put<PaymentController>(
-          PaymentController(Get.find<PaymentService>()),
+          PaymentController(
+            Get.find<PaymentService>(),
+            Get.find<PaymentCalculationService>(),
+          ),
         );
       }
     }),

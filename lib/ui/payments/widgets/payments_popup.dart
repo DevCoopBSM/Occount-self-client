@@ -2,7 +2,6 @@ import 'package:counter/ui/_constant/theme/devcoop_colors.dart';
 import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
 import 'package:counter/ui/_constant/util/number_format_util.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 // 결제 진행 중 팝업
 Widget paymentProcessingPopup(

@@ -28,7 +28,11 @@ class PaymentDetailsPanel extends GetView<PaymentController> {
             ),
           ),
           const Divider(color: Colors.black, thickness: 4),
-          const PaymentTotal(),
+          Obx(() => PaymentTotal(
+                totalPrice: controller.totalPrice.value,
+                currentPoints: controller.currentUser.point,
+                items: controller.itemResponses,
+              )),
         ],
       ),
     );

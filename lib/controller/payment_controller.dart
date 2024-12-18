@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../dto/item_response_dto.dart';
 import '../service/payment_service.dart';
+import '../service/payment_calculation_service.dart';
 import '../models/user_info.dart';
 import 'package:flutter/material.dart';
 import '../ui/payments/widgets/charge_dialog.dart';
@@ -10,10 +11,13 @@ import '../models/payment_response.dart';
 import '../ui/payments/widgets/payments_popup.dart';
 import '../ui/_constant/util/number_format_util.dart';
 import 'dart:async';
+import 'package:logging/logging.dart';
 
 class PaymentController extends GetxController {
   final PaymentService _paymentService;
+  final PaymentCalculationService _calculationService;
   final userController = Get.find<UserController>();
+  final _logger = Logger('PaymentController');
 
   final TextEditingController barcodeController = TextEditingController();
   final FocusNode barcodeFocusNode = FocusNode();
@@ -26,7 +30,7 @@ class PaymentController extends GetxController {
   final RxInt chargeAmount = 0.obs;
   final RxList<ItemResponseDto> nonBarcodeItems = <ItemResponseDto>[].obs;
 
-  PaymentController(this._paymentService);
+  PaymentController(this._paymentService, this._calculationService);
 
   @override
   void onInit() {
@@ -55,20 +59,21 @@ class PaymentController extends GetxController {
   }
 
   void addItem(ItemResponseDto item) {
-    print('💫 addItem 호출: ${item.toJson()}');
+    _logger.log(Level.INFO, '💫 addItem 호출: ${item.toJson()}');
     final existingIndex =
         itemResponses.indexWhere((i) => i.itemId == item.itemId);
 
     if (existingIndex != -1) {
-      print('✏️ 기존 상품 수량 증가: ${itemResponses[existingIndex].itemName}');
+      _logger.log(Level.INFO,
+          '✏️ 기존 상품 수량 증가: ${itemResponses[existingIndex].itemName}');
       itemResponses[existingIndex].quantity += 1;
       itemResponses.refresh();
     } else {
-      print('➕ 새 상품 추가: ${item.itemName}');
+      _logger.log(Level.INFO, '➕ 새 상품 추가: ${item.itemName}');
       itemResponses.add(item);
     }
     calculateTotalPrice();
-    print('💰 현재 총액: ${totalPrice.value}원');
+    _logger.log(Level.INFO, '💰 현재 총액: ${totalPrice.value}원');
   }
 
   void removeItem(String itemId) {
@@ -94,37 +99,29 @@ class PaymentController extends GetxController {
 
     try {
       isProcessing(true);
-      final isChargeRequest =
-          itemResponses.any((item) => item.type == 'CHARGE');
+      final isChargeRequest = _calculationService.hasChargeItem(itemResponses);
+      final isChargeOnly =
+          _calculationService.isChargeOnlyTransaction(itemResponses);
 
-      // 카드 결제 예상 금액 계산
-      int expectedCardAmount = 0;
+      String popupTitle;
+      String popupMessage;
+      final cardAmount = _calculationService.calculateCardAmount(
+        items: itemResponses,
+        totalPrice: totalPrice.value,
+        currentPoints: currentUser.point,
+      );
+
       if (isChargeRequest) {
-        expectedCardAmount = totalPrice.value;
+        popupTitle = '충전 진행 중';
+        popupMessage = '카드를 카드 리더기에 꽂아주세요.\n충전이 진행 중입니다.';
       } else {
-        // 일반 결제시 잔액이 부족한 경우
-        expectedCardAmount = totalPrice.value > currentUser.point
-            ? totalPrice.value - currentUser.point
-            : 0;
-      }
-
-      print('💫 결제 요청 시작: ${isChargeRequest ? "충전" : "결제"}');
-      print(
-          '💫 요청 데이터: items=${itemResponses.length}개, 총액=${totalPrice.value}원');
-      if (expectedCardAmount > 0) {
-        print('💳 예상 카드 결제 금액: $expectedCardAmount원');
-      }
-
-      // 결제 진행 중 팝업 표시
-      String popupTitle = '';
-      String popupMessage = '';
-
-      if (expectedCardAmount > 0) {
-        popupTitle = '카드 결제 진행 중';
-        popupMessage = '카드를 카드 리더기에 꽂아주세요.\n결제가 진행 중입니다.';
-      } else {
-        popupTitle = '포인트 결제 진행 중';
-        popupMessage = '포인트로 결제를 진행 중입니다.\n잠시만 기다려주세요.';
+        if (cardAmount > 0) {
+          popupTitle = '카드 결제 진행 중';
+          popupMessage = '카드를 카드 리더기에 꽂아주세요.\n결제가 진행 중입니다.';
+        } else {
+          popupTitle = '포인트 결제 진행 중';
+          popupMessage = '포인트로 결제를 진행 중입니다.\n잠시만 기다려주세요.';
+        }
       }
 
       Get.dialog(
@@ -132,75 +129,45 @@ class PaymentController extends GetxController {
           Get.context!,
           title: popupTitle,
           message: popupMessage,
-          cardAmount: expectedCardAmount > 0
-              ? "카드 결제 예정 금액: ${NumberFormatUtil.convert1000Number(expectedCardAmount)}원"
+          cardAmount: cardAmount > 0
+              ? "카드 결제 예정 금액: ${NumberFormatUtil.convert1000Number(cardAmount)}원"
               : null,
         ),
         barrierDismissible: false,
       );
 
-      // 35초 타임아웃으로 결제 요청
       final response = await _paymentService
           .executePayment(
-        items: itemResponses,
-        userInfo: currentUser,
-        totalAmount: totalPrice.value,
-      )
+            items: itemResponses,
+            userInfo: currentUser,
+            totalAmount: totalPrice.value,
+          )
           .timeout(
-        const Duration(seconds: 35),
-        onTimeout: () {
-          print('❌ 결제 타임아웃 발생 (35초 초과)');
-          throw TimeoutException('결제 처리 시간이 초과되었습니다');
-        },
-      );
+            const Duration(seconds: 35),
+            onTimeout: () => throw TimeoutException('결제 처리 시간이 초과되었습니다'),
+          );
 
-      print('✅ 서버 응답: ${response.toJson()}');
-
-      // 진행 중 팝업 닫기
-      Get.back();
+      Get.back(); // 진행 중 팝업 닫기
 
       if (response.success) {
-        print('✅ 결제 성공');
+        _logger.log(Level.INFO, '✅ ${isChargeRequest ? "충전" : "결제"} 성공');
         userController.updateUserPoint(response.remainingPoints);
-        print('✅ 포인트 업데이트: ${response.remainingPoints}원');
 
-        String resultMessage = "";
-        // 응답 타입에 따른 메시지 처리
-        switch (response.type) {
-          case 'CHARGE':
-            resultMessage =
-                "충전금액: ${NumberFormatUtil.convert1000Number(response.chargedAmount)}원\n"
-                "잔여금액: ${NumberFormatUtil.convert1000Number(response.balanceAfterCharge)}원\n"
-                "승인번호: ${response.approvalNumber}";
-            print('✅ 충전 완료: $resultMessage');
-            break;
-
-          case 'MIXED':
-            resultMessage =
-                "전체금액: ${NumberFormatUtil.convert1000Number(response.totalAmount)}원\n"
-                "충전금액: ${NumberFormatUtil.convert1000Number(response.chargedAmount)}원\n"
-                "카드결제: ${NumberFormatUtil.convert1000Number(expectedCardAmount)}원\n"
-                "잔여금액: ${NumberFormatUtil.convert1000Number(response.remainingPoints)}원\n"
-                "승인번호: ${response.approvalNumber}";
-            print('✅ 복합 결제 완료: $resultMessage');
-            break;
-
-          case 'PAYMENT':
-            resultMessage =
-                "결제금액: ${NumberFormatUtil.convert1000Number(response.totalAmount)}원\n"
-                "${expectedCardAmount > 0 ? "카드결제: ${NumberFormatUtil.convert1000Number(expectedCardAmount)}원\n" : ""}"
-                "잔여금액: ${NumberFormatUtil.convert1000Number(response.remainingPoints)}원\n"
-                "${response.approvalNumber.isNotEmpty ? "승인번호: ${response.approvalNumber}" : ""}";
-            print('✅ 일반 결제 완료: $resultMessage');
-            break;
-        }
+        String resultMessage = _calculationService.buildResultMessage(
+          response: response,
+          items: itemResponses, // items 파라미터 추가
+          isChargeRequest: isChargeRequest,
+          isChargeOnly: isChargeOnly,
+          totalPrice: totalPrice.value,
+          currentPoints: currentUser.point,
+        );
 
         Get.dialog(
           paymentResultPopup(
             Get.context!,
             resultMessage,
             false,
-            isCharge: response.type == 'CHARGE',
+            isCharge: isChargeRequest,
             totalAmount: response.totalAmount > 0
                 ? response.totalAmount
                 : response.chargedAmount,
@@ -209,47 +176,24 @@ class PaymentController extends GetxController {
           barrierDismissible: false,
         );
 
-        // 2초 후 결과 팝업 닫고 처음 화면으로
         await Future.delayed(const Duration(seconds: 2));
-        Get.back(); // 결과 팝업 닫기
+        Get.back();
         await loadNonBarcodeItems();
         clearItems();
         Get.offAllNamed('/');
-        print('✅ 처리 완료: 초기 화면으로 이동');
       } else {
-        print('❌ 결제 실패: ${response.message}');
         _handlePaymentError(response);
       }
-    } on TimeoutException catch (_) {
-      print('❌ 타임아웃 에러 처리');
-      Get.back();
-      Get.dialog(
-        paymentResultPopup(
-          Get.context!,
-          "결제 처리 시간이 초과되었습니다.\n다시 시도해 주세요.",
-          true,
-        ),
-        barrierDismissible: false,
-      );
     } catch (e) {
-      print('❌ 예외 발생: $e');
-      Get.back();
-      Get.dialog(
-        paymentResultPopup(
-          Get.context!,
-          "결제 처리 중 오류가 발생했습니다.\n다시 시도해 주세요.",
-          true,
-        ),
-        barrierDismissible: false,
-      );
+      _handlePaymentException(e);
     } finally {
       isProcessing(false);
-      print('🔄 결제 프로세스 종료');
+      _logger.log(Level.INFO, '🔄 결제 프로세스 종료');
     }
   }
 
   void _handlePaymentError(PaymentResponse response) {
-    print('❌ 결제 에러 처리: ${response.message}');
+    _logger.severe('❌ 결제 에러 처리: ${response.message}');
     Get.dialog(
       paymentResultPopup(
         Get.context!,
@@ -264,7 +208,7 @@ class PaymentController extends GetxController {
       Get.back(); // 결과 팝업 닫기
       clearItems();
       Get.offAllNamed('/');
-      print('✅ 에러 처리 완료: 초기 화면으로 이동');
+      _logger.info('✅ 에러 처리 완료: 초기 화면으로 이동');
     });
   }
 
@@ -293,14 +237,14 @@ class PaymentController extends GetxController {
       final item = await _paymentService.getItemByBarcode(barcode);
       if (item != null) {
         addItem(item);
-        print(
+        _logger.info(
             '📦 상품 추가: ID=${item.itemId}, 이름=${item.itemName}, 가격=${item.itemPrice}원');
       } else {
-        print('❌ 바코드에 해당하는 상품을 찾을 수 없음: $barcode');
+        _logger.severe('❌ 바코드에 해당하는 상품을 찾을 수 없음: $barcode');
         Get.snackbar('알림', '해당 바코드의 상품을 찾을 수 없습니다');
       }
     } catch (e) {
-      print('❌ 상품 조회 에러: $e');
+      _logger.severe('❌ 상품 조회 에러: $e');
       Get.snackbar('오류', '상품 정보를 가져오는데 실패했습니다');
     }
   }
@@ -373,15 +317,20 @@ class PaymentController extends GetxController {
   }
 
   void checkBalance() {
-    final int currentPoints = currentUser.point;
-    final int requiredAmount = totalPrice.value;
-    final int expectedCardAmount = requiredAmount - currentPoints;
+    final bool isChargeRequest =
+        _calculationService.hasChargeItem(itemResponses);
+    final bool isChargeOnly =
+        _calculationService.isChargeOnlyTransaction(itemResponses);
 
-    if (expectedCardAmount > 0) {
+    if (isChargeRequest) {
+      final int chargeAmount = isChargeOnly
+          ? totalPrice.value
+          : totalPrice.value; // 혼합 결제의 경우도 전체 금액을 카드로 결제
+
       Get.dialog(
         AlertDialog(
           title: const Text(
-            '결제 확인',
+            '충전 확인',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
@@ -389,24 +338,13 @@ class PaymentController extends GetxController {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '총 결제 금액: ${NumberFormatUtil.convert1000Number(requiredAmount)}원\n'
-                '사용 가능 포인트: ${NumberFormatUtil.convert1000Number(currentPoints)}원',
+                '총 금액: ${NumberFormatUtil.convert1000Number(chargeAmount)}원',
                 style: const TextStyle(fontSize: 20),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-              Text(
-                '카드 결제 예상 금액: ${NumberFormatUtil.convert1000Number(expectedCardAmount)}원',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
               const Text(
-                '결제를 진행하시겠습니까?',
+                '카드로 충전하시겠습니까?',
                 style: TextStyle(fontSize: 20),
                 textAlign: TextAlign.center,
               ),
@@ -415,26 +353,98 @@ class PaymentController extends GetxController {
           actions: [
             TextButton(
               onPressed: () => Get.back(),
-              child: const Text(
-                '취소',
-                style: TextStyle(fontSize: 20, color: Colors.grey),
-              ),
+              child: const Text('취소',
+                  style: TextStyle(fontSize: 20, color: Colors.grey)),
             ),
             TextButton(
               onPressed: () {
                 Get.back();
                 processPayment();
               },
-              child: const Text(
-                '결제 진행',
-                style: TextStyle(fontSize: 20, color: Colors.blue),
-              ),
+              child: const Text('충전 진행',
+                  style: TextStyle(fontSize: 20, color: Colors.blue)),
             ),
           ],
         ),
       );
     } else {
-      processPayment();
+      // 일반 상품만 있는 경우
+      final expectedCardAmount = totalPrice.value > currentUser.point
+          ? totalPrice.value - currentUser.point
+          : 0;
+
+      if (expectedCardAmount > 0) {
+        _showPaymentConfirmDialog(expectedCardAmount);
+      } else {
+        processPayment();
+      }
     }
+  }
+
+  void _showPaymentConfirmDialog(int cardAmount) {
+    Get.dialog(
+      AlertDialog(
+        title: const Text(
+          '결제 확인',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '총 결제 금액: ${NumberFormatUtil.convert1000Number(totalPrice.value)}원\n'
+              '사용 가능 포인트: ${NumberFormatUtil.convert1000Number(currentUser.point)}원',
+              style: const TextStyle(fontSize: 20),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '카드 결제 예상 금액: ${NumberFormatUtil.convert1000Number(cardAmount)}원',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '결제를 진행하시겠습니까?',
+              style: TextStyle(fontSize: 20),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('취소',
+                style: TextStyle(fontSize: 20, color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              processPayment();
+            },
+            child: const Text('결제 진행',
+                style: TextStyle(fontSize: 20, color: Colors.blue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handlePaymentException(dynamic error) {
+    _logger.log(Level.SEVERE, '❌ 결제 처리 중 예외 발생', error);
+    Get.back();
+    Get.dialog(
+      paymentResultPopup(
+        Get.context!,
+        "결제 처리 중 오류가 발생했습니다.\n다시 시도해 주세요.",
+        true,
+      ),
+      barrierDismissible: false,
+    );
   }
 }

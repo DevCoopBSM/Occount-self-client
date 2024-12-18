@@ -6,6 +6,8 @@ import '../dto/item_response_dto.dart';
 import '../models/user_info.dart';
 import '../models/payment_response.dart';
 import 'package:logging/logging.dart';
+import 'dart:async';
+import '../ui/_constant/util/number_format_util.dart';
 
 class PaymentService {
   final DbSecure dbSecure;
@@ -47,20 +49,13 @@ class PaymentService {
           items.where((item) => item.type != 'CHARGE').toList();
 
       String requestType = "PAYMENT";
-      if (chargeItem.type == 'CHARGE' && productItems.isNotEmpty) {
-        requestType = "MIXED";
-      } else if (chargeItem.type == 'CHARGE') {
+      if (chargeItem.type == 'CHARGE' && productItems.isEmpty) {
         requestType = "CHARGE";
+      } else if (chargeItem.type == 'CHARGE' && productItems.isNotEmpty) {
+        requestType = "MIXED";
       }
 
       _logger.info('💫 결제 요청 시작: $requestType');
-      if (productItems.isNotEmpty) {
-        _logger.info('📦 상품 목록: ${productItems.length}개');
-        for (var item in productItems) {
-          _logger.info(
-              '  - ID: ${item.itemId}, 이름: ${item.itemName}, 가격: ${item.itemPrice}원, 수량: ${item.quantity}');
-        }
-      }
 
       final Map<String, dynamic> requestBody = {
         "type": requestType,
@@ -76,6 +71,7 @@ class PaymentService {
       }
 
       if (productItems.isNotEmpty) {
+        _logger.info('📦 상품 목록: ${productItems.length}개');
         final paymentItems = productItems
             .map((item) => {
                   "itemId": item.itemId,
@@ -86,14 +82,14 @@ class PaymentService {
                 })
             .toList();
 
-        final totalAmount = productItems.fold<int>(
+        final productTotalAmount = productItems.fold<int>(
             0, (sum, item) => sum + (item.itemPrice * item.quantity));
 
         requestBody["payment"] = {
           "items": paymentItems,
-          "totalAmount": totalAmount
+          "totalAmount": productTotalAmount
         };
-        _logger.info('💰 상품 결제 정보: $totalAmount원');
+        _logger.info('💰 상품 결제 정보: $productTotalAmount원');
       }
 
       final encodedBody = json.encode(requestBody);
@@ -202,5 +198,96 @@ class PaymentService {
               type: json['eventStatus'] ?? 'NONE',
             ))
         .toList();
+  }
+
+  Future<void> processPayment({
+    required List<ItemResponseDto> items,
+    required UserInfo userInfo,
+    required int totalAmount,
+    required Function(PaymentResponse) onSuccess,
+    required Function(String) onError,
+  }) async {
+    try {
+      _logger.log(Level.INFO, '💳 결제 프로세스 시작');
+      final response = await executePayment(
+        items: items,
+        userInfo: userInfo,
+        totalAmount: totalAmount,
+      ).timeout(
+        const Duration(seconds: 35),
+        onTimeout: () {
+          _logger.severe('❌ 결제 타임아웃 발생 (35초 초과)');
+          throw TimeoutException('결제 처리 시간이 초과되었습니다');
+        },
+      );
+
+      if (response.success) {
+        _logger.log(Level.INFO, '✅ 결제 성공');
+        onSuccess(response);
+      } else {
+        _logger.severe('❌ 결제 실패: ${response.message}');
+        onError(response.message);
+      }
+    } catch (e) {
+      _logger.severe('❌ 결제 처리 중 예외 발생', e);
+      onError("결제 처리 중 오류가 발생했습니다.\n다시 시도해 주세요.");
+    } finally {
+      _logger.log(Level.INFO, '🔄 결제 프로세스 종료');
+    }
+  }
+
+  int calculateCardAmount({
+    required List<ItemResponseDto> items,
+    required int totalPrice,
+    required int currentPoints,
+    required bool isChargeOnly,
+  }) {
+    if (isChargeOnly) {
+      _logger.log(Level.INFO, '💰 순수 충전 금액 계산: $totalPrice원');
+      return totalPrice;
+    }
+
+    final chargeAmount = items
+        .where((item) => item.type == 'CHARGE')
+        .fold<int>(0, (sum, item) => sum + (item.itemPrice * item.quantity));
+
+    final paymentAmount = totalPrice - chargeAmount;
+    final cardPaymentAmount =
+        paymentAmount > currentPoints ? paymentAmount - currentPoints : 0;
+
+    final totalCardAmount = chargeAmount + cardPaymentAmount;
+    _logger.log(Level.INFO,
+        '💰 카드 결제 금액 계산 - 충전: $chargeAmount원, 결제: $cardPaymentAmount원, 총: $totalCardAmount원');
+
+    return totalCardAmount;
+  }
+
+  String buildResultMessage({
+    required PaymentResponse response,
+    required bool isChargeRequest,
+    required int totalPrice,
+    required int currentPoints,
+  }) {
+    if (isChargeRequest) {
+      return "충전금액: ${NumberFormatUtil.convert1000Number(response.chargedAmount)}원\n"
+          "잔여금액: ${NumberFormatUtil.convert1000Number(response.balanceAfterCharge)}원\n"
+          "승인번호: ${response.approvalNumber}";
+    }
+
+    final cardAmount =
+        totalPrice > currentPoints ? totalPrice - currentPoints : 0;
+
+    return "결제금액: ${NumberFormatUtil.convert1000Number(response.totalAmount)}원\n"
+        "${cardAmount > 0 ? "카드결제: ${NumberFormatUtil.convert1000Number(cardAmount)}원\n" : ""}"
+        "잔여금액: ${NumberFormatUtil.convert1000Number(response.remainingPoints)}원\n"
+        "${response.approvalNumber.isNotEmpty ? "승인번호: ${response.approvalNumber}" : ""}";
+  }
+
+  bool isChargeOnlyTransaction(List<ItemResponseDto> items) {
+    return items.every((item) => item.type == 'CHARGE');
+  }
+
+  bool hasChargeItem(List<ItemResponseDto> items) {
+    return items.any((item) => item.type == 'CHARGE');
   }
 }
