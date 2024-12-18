@@ -139,27 +139,47 @@ class PaymentService {
   }
 
   Future<ItemResponseDto?> getItemByBarcode(String itemCode) async {
-    final response = await client.get(
-      Uri.parse('${dbSecure.DB_HOST}/kiosk/item?itemCode=$itemCode'),
-      headers: await _getHeaders(),
-    );
+    try {
+      _logger.info('📡 바코드 상품 조회 요청: $itemCode');
 
-    if (response.statusCode != 200) {
-      throw Exception('상품 정보를 가져오는데 실패했습니다');
+      final uri =
+          Uri.parse('${dbSecure.DB_HOST}/kiosk/item?itemCode=$itemCode');
+      _logger.info('📡 요청 URL: $uri');
+
+      final headers = await _getHeaders();
+      _logger.info('📡 요청 헤더: $headers');
+
+      final response = await client.get(uri, headers: headers);
+
+      _logger.info('📡 서버 응답 상태코드: ${response.statusCode}');
+      _logger.info('📡 서버 응답 바디: ${utf8.decode(response.bodyBytes)}');
+
+      if (response.statusCode != 200) {
+        throw Exception(
+            '상품 정보를 가져오는데 실패했습니다. 상태코드: ${response.statusCode}, 응답: ${utf8.decode(response.bodyBytes)}');
+      }
+
+      final List<dynamic> itemJsonList =
+          jsonDecode(utf8.decode(response.bodyBytes));
+      if (itemJsonList.isEmpty) {
+        _logger.info('❌ 바코드에 해당하는 상품이 없습니다: $itemCode');
+        return null;
+      }
+
+      final itemJson = itemJsonList.first;
+      _logger.info('✅ 상품 조회 성공: $itemJson');
+
+      return ItemResponseDto(
+        itemName: itemJson['itemName'],
+        itemPrice: itemJson['itemPrice'],
+        itemId: itemJson['itemId'].toString(),
+        quantity: itemJson['quantity'] ?? 1,
+        type: itemJson['eventStatus'] ?? 'NONE',
+      );
+    } catch (e, stackTrace) {
+      _logger.severe('❌ 상품 조회 중 에러 발생', e, stackTrace);
+      throw Exception('상품 정보를 가져오는데 실패했습니다: $e');
     }
-
-    final List<dynamic> itemJsonList =
-        jsonDecode(utf8.decode(response.bodyBytes));
-    if (itemJsonList.isEmpty) return null;
-
-    final itemJson = itemJsonList.first;
-    return ItemResponseDto(
-      itemName: itemJson['itemName'],
-      itemPrice: itemJson['itemPrice'],
-      itemId: itemJson['itemId'],
-      quantity: itemJson['quantity'] ?? 1,
-      type: itemJson['eventStatus'] ?? 'NONE',
-    );
   }
 
   Future<List<ItemResponseDto>> getNonBarcodeItems() async {
