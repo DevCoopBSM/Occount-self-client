@@ -11,53 +11,42 @@ class PaymentTotal extends GetView<PaymentController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final bool isPaymentPossible =
-          controller.currentUser.point >= controller.totalPrice.value;
+      final int currentPoints = controller.currentUser.point;
+      final int totalAmount = controller.totalPrice.value;
+      final int expectedCardAmount =
+          totalAmount > currentPoints ? totalAmount - currentPoints : 0;
 
-      if (!isPaymentPossible) {
-        return const Text(
-          "잔액이 부족합니다",
-          style: TextStyle(
-            color: DevCoopColors.error,
-            fontSize: 30,
-            fontWeight: FontWeight.w700,
-          ),
+      if (expectedCardAmount > 0) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              "사용 가능 포인트: ${NumberFormatUtil.convert1000Number(currentPoints)}원",
+              style: const TextStyle(
+                fontSize: 24,
+                color: DevCoopColors.black,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "카드 결제 예정: ${NumberFormatUtil.convert1000Number(expectedCardAmount)}원",
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w700,
+                color: DevCoopColors.primary,
+              ),
+            ),
+          ],
         );
       }
 
-      return Row(
-        children: [
-          const Expanded(
-            child: Text(
-              '총 가격',
-              style: DevCoopTextStyle.bold_30,
-            ),
-          ),
-          Container(
-            width: 100,
-            alignment: Alignment.center,
-            child: const Text(''),
-          ),
-          Container(
-            width: 155,
-            alignment: Alignment.centerRight,
-            child: Text(
-              controller.itemResponses
-                  .fold<int>(0, (sum, item) => sum + (item.quantity))
-                  .toString(),
-              style: DevCoopTextStyle.bold_30,
-            ),
-          ),
-          Container(
-            width: 155,
-            alignment: Alignment.centerRight,
-            child: Text(
-              NumberFormatUtil.convert1000Number(controller.totalPrice.value),
-              style: DevCoopTextStyle.bold_30,
-            ),
-          ),
-          const SizedBox(width: 118),
-        ],
+      return Text(
+        "포인트로 결제 가능",
+        style: const TextStyle(
+          color: DevCoopColors.primary,
+          fontSize: 30,
+          fontWeight: FontWeight.w700,
+        ),
       );
     });
   }

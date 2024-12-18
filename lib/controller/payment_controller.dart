@@ -371,4 +371,70 @@ class PaymentController extends GetxController {
       calculateTotalPrice();
     }
   }
+
+  void checkBalance() {
+    final int currentPoints = currentUser.point;
+    final int requiredAmount = totalPrice.value;
+    final int expectedCardAmount = requiredAmount - currentPoints;
+
+    if (expectedCardAmount > 0) {
+      Get.dialog(
+        AlertDialog(
+          title: const Text(
+            '결제 확인',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '총 결제 금액: ${NumberFormatUtil.convert1000Number(requiredAmount)}원\n'
+                '사용 가능 포인트: ${NumberFormatUtil.convert1000Number(currentPoints)}원',
+                style: const TextStyle(fontSize: 20),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '카드 결제 예상 금액: ${NumberFormatUtil.convert1000Number(expectedCardAmount)}원',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '결제를 진행하시겠습니까?',
+                style: TextStyle(fontSize: 20),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text(
+                '취소',
+                style: TextStyle(fontSize: 20, color: Colors.grey),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Get.back();
+                processPayment();
+              },
+              child: const Text(
+                '결제 진행',
+                style: TextStyle(fontSize: 20, color: Colors.blue),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      processPayment();
+    }
+  }
 }
