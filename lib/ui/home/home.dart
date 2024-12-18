@@ -1,21 +1,16 @@
-// ignore_for_file: must_be_immutable
-
-import 'package:counter/provider/bottom_navigation_provider.dart';
-import 'package:counter/ui/components/bottom_navigation_widget.dart';
-import 'package:counter/ui/components/navigation_body.dart';
+import 'package:get/get.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import '../../controller/bottom_navigation_controller.dart';
+import '../components/bottom_navigation_widget.dart';
 
-class Home extends StatelessWidget {
-  Home({Key? key}) : super(key: key);
-  late BottomNavigationProvider provider;
+class Home extends GetView<BottomNavigationController> {
+  const Home({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    provider = Provider.of<BottomNavigationProvider>(context);
     return Scaffold(
-      body: navigationBody(provider),
-      bottomNavigationBar: bottomNavigationBarWidget(provider),
+      body: Obx(() => controller.currentPage),
+      bottomNavigationBar: bottomNavigationBarWidget(controller),
     );
   }
 }

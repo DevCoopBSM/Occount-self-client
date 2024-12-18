@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:counter/ui/_constant/util/app_router.dart';
-import 'package:counter/ui/barcode/barcode_page.dart';
+import 'package:counter/bindings/app_binding.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:counter/services/person_counter_service.dart';
@@ -43,22 +43,9 @@ class _MyAppState extends State<MyApp> {
     return GetMaterialApp(
       title: '부산소프트웨어마이스터고등학교 매점 셀프계산대.',
       debugShowCheckedModeBanner: false,
+      initialBinding: AppBinding(),
       getPages: appRouter,
-      initialRoute: '/',
-      home: const BarcodePage(),
-      // home: MultiProvider(
-      //   providers: [
-      //     ChangeNotifierProvider(
-      //       create: (BuildContext context) => CountProvider(),
-      //     ),
-      //     ChangeNotifierProvider(
-      //       create: (BuildContext context) => BottomNavigationProvider(),
-      //     ),
-      //   ],
-      //   // child: const OnboardPage(),
-      //   // child: Home(),
-      //   child: const BarcodePage(),
-      // ),
+      initialRoute: '/barcode',
     );
   }
 }

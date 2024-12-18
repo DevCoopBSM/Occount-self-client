@@ -125,7 +125,7 @@ class PersonCounterService {
         _logger.info('Attempting to play welcome message');
         await _audioPlayer.play(AssetSource('audios/welcome.mp3'));
         _logger.info('Welcome message played successfully');
-        await const Duration(seconds: 2);
+        const Duration(seconds: 2);
       } catch (e) {
         _logger.severe('Error playing welcome message: $e');
       } finally {
@@ -141,7 +141,7 @@ class PersonCounterService {
         _logger.info('Attempting to play goodbye message');
         await _audioPlayer.play(AssetSource('audios/goodbye.mp3'));
         _logger.info('Goodbye message played successfully');
-        await const Duration(seconds: 2);
+        const Duration(seconds: 2);
       } catch (e) {
         _logger.severe('Error playing goodbye message: $e');
       } finally {

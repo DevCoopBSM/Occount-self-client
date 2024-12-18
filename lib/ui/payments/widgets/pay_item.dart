@@ -12,52 +12,39 @@ Widget paymentsItem({
   required String minus,
   int? right,
   String? rightText,
-  bool contentsTitle = false,
   bool totalText = true,
   required void Function(void Function()) setState,
   required List<ItemResponseDto> itemResponses,
   required int totalPrice,
 }) {
-  // 총 가격을 매번 계산하는 로직 추가
-  totalPrice = itemResponses.fold(
-      0, (sum, item) => sum + item.itemPrice * item.quantity);
-
   return Row(
     children: [
       Expanded(
         child: Text(
           itemName,
-          style: contentsTitle
-              ? DevCoopTextStyle.medium_30.copyWith(
+          style: totalText
+              ? DevCoopTextStyle.bold_30.copyWith(
                   color: DevCoopColors.black,
                 )
-              : totalText
-                  ? DevCoopTextStyle.bold_30.copyWith(
-                      color: DevCoopColors.black,
-                    )
-                  : DevCoopTextStyle.light_30.copyWith(
-                      color: DevCoopColors.black,
-                    ),
+              : DevCoopTextStyle.light_30.copyWith(
+                  color: DevCoopColors.black,
+                ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
       ),
       Container(
-        alignment: Alignment.centerRight,
         width: 100,
+        alignment: Alignment.center,
         child: Text(
           type,
-          style: contentsTitle
+          style: totalText
               ? DevCoopTextStyle.medium_30.copyWith(
                   color: DevCoopColors.black,
                 )
-              : totalText
-                  ? DevCoopTextStyle.medium_30.copyWith(
-                      color: DevCoopColors.black,
-                    )
-                  : DevCoopTextStyle.medium_30.copyWith(
-                      color: DevCoopColors.error,
-                    ),
+              : DevCoopTextStyle.medium_30.copyWith(
+                  color: DevCoopColors.error,
+                ),
         ),
       ),
       Container(
@@ -65,34 +52,26 @@ Widget paymentsItem({
         alignment: Alignment.centerRight,
         child: Text(
           "$center",
-          style: contentsTitle
-              ? DevCoopTextStyle.medium_30.copyWith(
+          style: totalText
+              ? DevCoopTextStyle.bold_30.copyWith(
                   color: DevCoopColors.black,
                 )
-              : totalText
-                  ? DevCoopTextStyle.bold_30.copyWith(
-                      color: DevCoopColors.black,
-                    )
-                  : DevCoopTextStyle.light_30.copyWith(
-                      color: DevCoopColors.black,
-                    ),
+              : DevCoopTextStyle.light_30.copyWith(
+                  color: DevCoopColors.black,
+                ),
         ),
       ),
       Container(
         width: 155,
         alignment: Alignment.centerRight,
         child: Text(rightText ?? NumberFormatUtil.convert1000Number(right ?? 0),
-            style: contentsTitle
-                ? DevCoopTextStyle.medium_30.copyWith(
+            style: totalText
+                ? DevCoopTextStyle.bold_30.copyWith(
                     color: DevCoopColors.black,
                   )
-                : totalText
-                    ? DevCoopTextStyle.bold_30.copyWith(
-                        color: DevCoopColors.black,
-                      )
-                    : DevCoopTextStyle.light_30.copyWith(
-                        color: DevCoopColors.black,
-                      )),
+                : DevCoopTextStyle.light_30.copyWith(
+                    color: DevCoopColors.black,
+                  )),
       ),
       const SizedBox(width: 10),
       plus.isNotEmpty

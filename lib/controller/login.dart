@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:counter/controller/save_user_info.dart';
 import 'package:counter/secure/db.dart';
 import 'package:counter/ui/_constant/theme/devcoop_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:counter/controller/user_controller.dart';
 
 class LoginController {
   final dbSecure = DbSecure();
@@ -83,12 +83,18 @@ class LoginController {
           return; // 리다이렉션 후 함수 종료
         }
 
-        String accessToken = responseBody['token'] ?? '';
-        String userName = responseBody['userName'] ?? '';
-        int userPoint = responseBody['userPoint'] ?? 0;
+        if (response.statusCode == 200) {
+          String accessToken = responseBody['token'] ?? '';
+          String userName = responseBody['userName'] ?? '';
+          int userPoint = responseBody['userPoint'] ?? 0;
 
-        saveUserData(accessToken, userCode, userPoint, userName);
-        Get.offAllNamed('/check');
+          // UserController를 통해 사용자 정보 저장
+          final userController = Get.find<UserController>();
+          await userController.setUserData(
+              userName, userPoint, userCode, accessToken);
+
+          Get.offAllNamed('/check');
+        }
       } else {
         Get.snackbar("Error", "학생증 번호 또는 핀 번호가 잘못되었습니다",
             colorText: Colors.white,

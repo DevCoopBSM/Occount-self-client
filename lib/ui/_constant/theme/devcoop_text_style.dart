@@ -16,6 +16,11 @@ class DevCoopTextStyle {
     fontStyle: FontStyle.normal,
     fontSize: 30.0,
   );
+  static const bold_20 = TextStyle(
+    fontFamily: "GmarketSansB",
+    fontStyle: FontStyle.normal,
+    fontSize: 20.0,
+  );
 
   static const medium_30 = TextStyle(
     fontFamily: "GmarketSansM",
@@ -33,5 +38,4 @@ class DevCoopTextStyle {
     fontStyle: FontStyle.normal,
     fontSize: 30.0,
   );
-
 }
