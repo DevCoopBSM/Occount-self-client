@@ -6,7 +6,8 @@ enum ApiErrorCode {
   paymentFailed(400, 'PAYMENT_FAILED'),
   itemNotFound(404, 'ITEM_NOT_FOUND'),
   invalidPin(401, 'INVALID_PIN'),
-  fetchPointFailed(500, 'FETCH_POINT_FAILED');
+  fetchPointFailed(500, 'FETCH_POINT_FAILED'),
+  tokenExpired(401, 'TOKEN_EXPIRED');
 
   final int statusCode;
   final String code;
@@ -28,29 +29,31 @@ class ApiException implements Exception {
   factory ApiException.fromErrorCode(ApiErrorCode code, [String? message]) {
     return ApiException(
       code: code,
-      message: message ?? _getDefaultMessage(code),
+      message: message ?? _getDefaultMessage(code.code),
       status: 'FAIL',
     );
   }
 
-  static String _getDefaultMessage(ApiErrorCode code) {
+  static String _getDefaultMessage(String code) {
     switch (code) {
-      case ApiErrorCode.unauthorized:
-        return '로그인에 실패했습니다.';
-      case ApiErrorCode.notFound:
-        return '요청한 리소스를 찾을 수 없습니다.';
-      case ApiErrorCode.serverError:
-        return '서버 오류가 발생했습니다.';
-      case ApiErrorCode.changePinFailed:
-        return '비밀번호 변경에 실패했습니다.';
-      case ApiErrorCode.paymentFailed:
-        return '결제에 실패했습니다.';
-      case ApiErrorCode.itemNotFound:
-        return '상품을 찾을 수 없습니다.';
-      case ApiErrorCode.invalidPin:
-        return '비밀번호가 올바르지 않습니다.';
-      case ApiErrorCode.fetchPointFailed:
-        return '포인트 조회에 실패했습니다.';
+      case 'USER_NOT_FOUND':
+        return '사용자를 찾을 수 없습니다';
+      case 'INVALID_BARCODE':
+        return '잘못된 바코드입니다';
+      case 'ITEM_NOT_FOUND':
+        return '상품을 찾을 수 없습니다';
+      case 'FETCH_POINT_FAILED':
+        return '포인트 조회에 실패했습니다';
+      case 'PAYMENT_FAILED':
+        return '결제 처리에 실패했습니다';
+      case 'NETWORK_ERROR':
+        return '네트워크 연결을 확인해주세요';
+      case 'SERVER_ERROR':
+        return '서버 오류가 발생했습니다';
+      case 'UNKNOWN':
+        return '알 수 없는 오류가 발생했습니다';
+      default:
+        return '오류가 발생했습니다';
     }
   }
 

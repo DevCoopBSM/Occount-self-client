@@ -6,6 +6,7 @@ import '../models/payment_response.dart';
 import '../exception/payment_exception.dart';
 import '../models/payment_request.dart';
 import '../models/cart_item.dart';
+import 'dart:convert';
 
 class PaymentService {
   final ApiClient _apiClient;
@@ -83,27 +84,73 @@ class PaymentService {
     required List<CartItem> items,
     required String userCode,
     required String userName,
-    required int totalPrice,
   }) async {
     try {
-      final request = PaymentRequest(
-        type: 'PAYMENT',
-        userInfo: UserInfo(id: userCode),
-        payment: PaymentInfo(
-          items: items.map((item) => PaymentItem.fromCartItem(item)).toList(),
-          totalAmount: totalPrice,
+      // 충전 아이템과 일반 상품 분리
+      final chargeItem = items.firstWhere(
+        (item) => item.itemCategory == 'CHARGE',
+        orElse: () => CartItem(
+          itemId: 0,
+          itemName: '',
+          itemPrice: 0,
+          quantity: 0,
+          itemCategory: 'NONE',
+          itemCode: '',
         ),
       );
 
-      _logger.info('💰 결제 요청 시작');
-      _logger.info('사용자: $userName ($userCode)');
-      _logger.info('총 결제금액: $totalPrice원');
-      _logger.info('상품 목록:');
-      for (var item in items) {
-        _logger
-            .info('- ${item.itemName}: ${item.quantity}개, ${item.totalPrice}원');
+      final productItems =
+          items.where((item) => item.itemCategory != 'CHARGE').toList();
+
+      // 요청 타입 결정
+      PaymentType requestType;
+      if (chargeItem.itemCategory == 'CHARGE' && productItems.isEmpty) {
+        requestType = PaymentType.CHARGE;
+      } else if (chargeItem.itemCategory == 'CHARGE' &&
+          productItems.isNotEmpty) {
+        requestType = PaymentType.MIXED;
+      } else {
+        requestType = PaymentType.PAYMENT;
       }
-      _logger.info('요청 데이터: ${request.toJson()}');
+
+      _logger.info('💫 결제 요청 시작: $requestType');
+
+      // 요청 객체 구성
+      var request = PaymentRequest(
+        type: requestType,
+        userInfo: UserInfo(id: userCode),
+      );
+
+      // 충전 정보 추가
+      if (chargeItem.itemCategory == 'CHARGE') {
+        request = request.copyWith(
+          charge: ChargeInfo(
+            amount: chargeItem.itemPrice,
+            method: 'CARD',
+          ),
+        );
+        _logger.info('💳 충전 정보: ${chargeItem.itemPrice}원');
+      }
+
+      // 상품 결제 정보 추가
+      if (productItems.isNotEmpty) {
+        _logger.info('📦 상품 목록: ${productItems.length}개');
+        final paymentItems =
+            productItems.map((item) => PaymentItem.fromCartItem(item)).toList();
+
+        final productTotalAmount = productItems.fold<int>(
+            0, (sum, item) => sum + (item.itemPrice * item.quantity));
+
+        request = request.copyWith(
+          payment: PaymentInfo(
+            items: paymentItems,
+            totalAmount: productTotalAmount,
+          ),
+        );
+        _logger.info('💰 상품 결제 정보: $productTotalAmount원');
+      }
+
+      _logger.info('📡 요청 데이터: ${jsonEncode(request.toJson())}');
 
       try {
         final response = await _apiClient
@@ -125,20 +172,15 @@ class PaymentService {
         );
 
         _logger.info('✅ 결제 성공');
-        _logger.info('응답 데이터: ${response.toJson()}');
         return response;
       } catch (e) {
         _logger.severe('❌ 결제 처리 중 오류: $e');
         if (e is PaymentException) {
           rethrow;
         }
-        final errorResponse = e as dynamic;
-        final errorMessage =
-            errorResponse?.message ?? '결제 처리 중 오류가 발생했습니다.\n다시 시도해주세요.';
-
         throw PaymentException(
           code: 'PAYMENT_FAILED',
-          message: errorMessage,
+          message: '결제 처리 중 오류가 발생했습니다.\n다시 시도해주세요.',
           status: 500,
         );
       }

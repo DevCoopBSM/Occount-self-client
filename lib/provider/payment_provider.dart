@@ -20,7 +20,6 @@ class PaymentProvider extends ChangeNotifier {
   final Logger _logger = Logger('PaymentProvider');
 
   bool _isLoading = false;
-  bool _isProcessing = false;
   String? _error;
   int _chargeAmount = 0;
   final List<NonBarcodeItemResponse> _nonBarcodeItems = [];
@@ -29,7 +28,6 @@ class PaymentProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get isProcessing => _isProcessing;
   List<NonBarcodeItemResponse> get nonBarcodeItems => _nonBarcodeItems;
   int get chargeAmount => _chargeAmount;
 
@@ -92,9 +90,6 @@ class PaymentProvider extends ChangeNotifier {
         return;
       }
 
-      _isProcessing = true;
-      notifyListeners();
-
       // 결제 계산
       final calculation = calculatePayment(
         authProvider.cartItems,
@@ -103,104 +98,91 @@ class PaymentProvider extends ChangeNotifier {
 
       // 결제 진행 다이얼로그 표시
       if (!context.mounted) return;
-      bool isProcessingDialogVisible = false;
+
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) {
-          isProcessingDialogVisible = true;
-          return PaymentProcessingDialog(
-            totalAmount: calculation.totalPrice,
-            paymentAmount: calculation.expectedPoints,
-            cardAmount: calculation.expectedCardAmount,
-            isChargeOnly: calculation.isChargeOnly,
-          );
-        },
-      ).then((_) => isProcessingDialogVisible = false);
+        builder: (context) => PaymentProcessingDialog(
+          totalAmount: calculation.totalPrice,
+          paymentAmount: calculation.expectedPoints,
+          cardAmount: calculation.expectedCardAmount,
+          isChargeOnly: calculation.isChargeOnly,
+        ),
+      );
 
-      try {
-        final result = await executePayment(
-          userCode: userCode,
-          userName: userName,
-          items: authProvider.cartItems,
-        ).timeout(
-          const Duration(seconds: 31),
-          onTimeout: () {
-            if (!isProcessingDialogVisible) {
-              throw PaymentException(
-                code: 'PAYMENT_CANCELED',
-                message: '결제가 취소되었습니다.',
-                status: 499,
-              );
-            }
-            _logger.warning('⚠️ 결제 요청 타임아웃 (31초 초과)');
-            throw PaymentException(
-              code: 'PAYMENT_TIMEOUT',
-              message: '결제 처리 시간이 초과되었습니다.\n잠시 후 다시 시도해주세요.',
-              status: 408,
-            );
-          },
+      // 결제 API 요청
+      _logger.info('💰 결제 API 요청 시작');
+      final result = await _paymentService.executePayment(
+        items: authProvider.cartItems,
+        userCode: userCode,
+        userName: userName,
+      );
+
+      // API 요청이 완료되면 진행 다이얼로그 닫기
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (!context.mounted) return;
+
+      // 결제 완료 후 장바구니 초기화
+      authProvider.clearCart();
+
+      // 결제 결과 다이얼로그 표시
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PaymentResultDialog(
+          response: result,
+        ),
+      );
+
+      if (context.mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/scan',
+          (route) => false,
         );
+      }
+    } catch (e) {
+      _logger.severe('💳 결제 처리 중 오류 발생: $e');
 
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // 진행 다이얼로그 닫기
+
+      // 409 에러인 경우 특별 처리
+      if (e is PaymentException && e.status == 409) {
         if (!context.mounted) return;
-        // 프로세싱 다이얼로그 닫기
-        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('다른 단말기에서 결제가 진행 중입니다.\n잠시 후 다시 시도해주세요.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
 
-        // 결제 완료 후 장바구니 초기화
-        authProvider.clearCart();
+      // 다른 에러의 경우 기존과 동일하게 처리
+      if (!context.mounted) return;
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PaymentResultDialog(
+          response: null,
+          errorMessage:
+              e is PaymentException ? e.message : '결제 처리 중 오류가 발생했습니다',
+        ),
+      );
 
-        // 결제 결과 다이얼로그 표시하고 결과 기다리기
-        if (context.mounted) {
-          final dialogResult = await showDialog<String>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => PaymentResultDialog(
-              response: result,
-            ),
+      if (context.mounted) {
+        if (!(e is PaymentException) || (e as PaymentException).status != 409) {
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/scan',
+            (route) => false,
           );
-
-          // 다이얼로그 결과에 따라 페이지 이동
-          if (dialogResult == 'NAVIGATE_TO_SCAN' && context.mounted) {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/scan',
-              (route) => false,
-            );
-          }
-        }
-      } catch (e) {
-        _logger.severe('💳 결제 처리 중 오류 발생: $e');
-        if (!context.mounted) return;
-
-        // 프로세싱 다이얼로그 먼저 닫기
-        Navigator.of(context).pop();
-
-        // 에러 다이얼로그 표시
-        if (context.mounted) {
-          final dialogResult = await showDialog<String>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => PaymentResultDialog(
-              response: null,
-              errorMessage: e is PaymentException
-                  ? e.message // PaymentException의 메시지를 그대로 사용
-                  : '결제 처리 중 오류가 발생했습니다.\n다시 시도해주세요.',
-            ),
-          );
-
-          // 다이얼로그 결과에 따라 페이지 이동
-          if (dialogResult == 'NAVIGATE_TO_SCAN' && context.mounted) {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/scan',
-              (route) => false,
-            );
-          }
         }
       }
-    } finally {
-      _isProcessing = false;
-      notifyListeners();
     }
   }
 
@@ -216,11 +198,15 @@ class PaymentProvider extends ChangeNotifier {
     required String userName,
     required List<CartItem> items,
   }) async {
+    final totalPrice = calculateTotalPrice(items);
+    _logger.info('💰 결제 요청 시작');
+    _logger.info('사용자: $userName ($userCode)');
+    _logger.info('총 결제금액: $totalPrice원');
+
     return await _paymentService.executePayment(
       items: items,
       userCode: userCode,
       userName: userName,
-      totalPrice: calculateTotalPrice(items),
     );
   }
 
@@ -287,6 +273,10 @@ class PaymentProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void cancelPayment() {
+    _logger.info('💡 결제가 취소되었습니다');
   }
 }
 

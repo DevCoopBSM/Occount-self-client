@@ -73,13 +73,6 @@ class PaymentActionButtons extends StatelessWidget {
                 ],
               ),
               onTap: () async {
-                if (paymentProvider.isProcessing) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('결제 처리 중입니다...')),
-                  );
-                  return;
-                }
-
                 if (authProvider.userInfo.userCode.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('사용자 정보가 없습니다.')),

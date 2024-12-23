@@ -1,21 +1,57 @@
 import '../models/cart_item.dart';
 
+enum PaymentType {
+  PAYMENT,
+  CHARGE,
+  MIXED;
+
+  @override
+  String toString() => name;
+}
+
 class PaymentRequest {
-  final String type;
+  final PaymentType type;
   final UserInfo userInfo;
-  final PaymentInfo payment;
+  final PaymentInfo? payment;
+  final ChargeInfo? charge;
 
   PaymentRequest({
     required this.type,
     required this.userInfo,
-    required this.payment,
+    this.payment,
+    this.charge,
   });
 
-  Map<String, dynamic> toJson() => {
-        'type': type,
-        'userInfo': userInfo.toJson(),
-        'payment': payment.toJson(),
-      };
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> json = {
+      'type': type.toString(),
+      'userInfo': userInfo.toJson(),
+    };
+
+    if (payment != null) {
+      json['payment'] = payment!.toJson();
+    }
+
+    if (charge != null) {
+      json['charge'] = charge!.toJson();
+    }
+
+    return json;
+  }
+
+  PaymentRequest copyWith({
+    PaymentType? type,
+    UserInfo? userInfo,
+    PaymentInfo? payment,
+    ChargeInfo? charge,
+  }) {
+    return PaymentRequest(
+      type: type ?? this.type,
+      userInfo: userInfo ?? this.userInfo,
+      payment: payment ?? this.payment,
+      charge: charge ?? this.charge,
+    );
+  }
 }
 
 class UserInfo {
@@ -73,4 +109,19 @@ class PaymentItem {
       totalPrice: item.totalPrice,
     );
   }
+}
+
+class ChargeInfo {
+  final int amount;
+  final String method;
+
+  ChargeInfo({
+    required this.amount,
+    this.method = 'CARD',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'amount': amount,
+        'method': method,
+      };
 }
