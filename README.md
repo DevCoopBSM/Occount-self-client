@@ -34,12 +34,13 @@
 
 이 프로젝트를 시작하려면, Flutter가 설치되어 있어야 합니다. 다음 명령어를 사용하여 저장소를 클론하고 애플리케이션을 실행할 수 있습니다:
 
-
+```
 bash
 git clone <repository-url>
 cd occount_self
 flutter pub get
 flutter run
+```
 
 ## 리소스
 
