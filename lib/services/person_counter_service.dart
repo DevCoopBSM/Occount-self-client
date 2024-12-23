@@ -18,9 +18,9 @@ class PersonCounterService {
   bool _isConnected = false; // 새로운 변수: 실제 연결 상태를 추적
   int _reconnectAttempts = 0;
   final Logger _logger = Logger('PersonCounterService');
-  static const double PRESENCE_THRESHOLD = 0.3; // 사람이 있다고 판단할 임계값
-  static const int STABLE_COUNT_THRESHOLD = 5; // 안정적인 상태로 판단할 횟수
-  static const int EXIT_COUNT_THRESHOLD = 4; // 퇴장으로 판단할 횟수
+  static const presenceThreshold = 0.5; // PRESENCE_THRESHOLD
+  static const stableCountThreshold = 3; // STABLE_COUNT_THRESHOLD
+  static const exitCountThreshold = 3; // EXIT_COUNT_THRESHOLD
 
   PersonCounterService() {
     _initWebSocket();
@@ -99,12 +99,12 @@ class PersonCounterService {
   void _checkStableCount() {
     _logger.info('Checking stable count: $_currentAvgCount');
 
-    if (_currentAvgCount > PRESENCE_THRESHOLD) {
+    if (_currentAvgCount > presenceThreshold) {
       nonZeroCount++;
       zeroCount = 0;
 
       // 안정적으로 사람이 감지된 경우에만 웰컴 메시지
-      if (nonZeroCount >= STABLE_COUNT_THRESHOLD && !hasEntered) {
+      if (nonZeroCount >= stableCountThreshold && !hasEntered) {
         _logger.info('Playing welcome message');
         _playWelcomeMessage();
         hasEntered = true;
@@ -113,7 +113,7 @@ class PersonCounterService {
       zeroCount++;
 
       // 완전히 0이 아니어도, 임계값 이하로 떨어지면 카운트
-      if (zeroCount >= EXIT_COUNT_THRESHOLD && hasEntered) {
+      if (zeroCount >= exitCountThreshold && hasEntered) {
         nonZeroCount = 0; // 퇴장으로 판단될 때만 초기화
         _logger.info('Playing goodbye message');
         _playGoodbyeMessage();

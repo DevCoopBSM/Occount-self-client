@@ -1,45 +1,35 @@
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:logging/logging.dart';
 
-// 더 단순한 형태의 enum
 enum SoundType {
-  click,
-  welcome,
-  goodbye;
+  click('click.mp3'),
+  success('success.mp3'),
+  error('error.mp3'),
+  welcome('welcome.mp3'),
+  goodbye('goodbye.mp3');
 
-  String get fileName {
-    switch (this) {
-      case SoundType.click:
-        return 'click.mp3';
-      case SoundType.welcome:
-        return 'welcome.mp3';
-      case SoundType.goodbye:
-        return 'goodbye.mp3';
-    }
-  }
+  final String fileName;
+  const SoundType(this.fileName);
 }
 
 class SoundUtils {
-  static final Logger _logger = Logger('SoundUtils');
-
-  static final Map<SoundType, List<AudioPlayer>> _playerPools = {
-    for (var type in SoundType.values)
-      type: List.generate(10, (_) => AudioPlayer())
-  };
-
-  static final Map<SoundType, int> _currentIndices = {
-    for (var type in SoundType.values) type: 0
-  };
-
+  static final _logger = Logger('SoundUtils');
+  static final Map<SoundType, List<AudioPlayer>> _playerPools = {};
+  static final Map<SoundType, int> _currentIndices = {};
   static final Set<SoundType> _initializedTypes = {};
+
+  static const _poolSize = 3; // 각 사운드 타입당 플레이어 수
 
   static Future<void> _initializeType(SoundType type) async {
     if (_initializedTypes.contains(type)) return;
 
     try {
+      _playerPools[type] ??= List.generate(_poolSize, (_) => AudioPlayer());
+      _currentIndices[type] ??= 0;
+
       final players = _playerPools[type]!;
       for (var player in players) {
-        await player.setSource(AssetSource('audios/${type.fileName}'));
+        await player.setAsset('assets/audios/${type.fileName}');
         await player.setVolume(1.0);
       }
       _initializedTypes.add(type);
@@ -57,11 +47,10 @@ class SoundUtils {
       final player = players[currentIndex];
 
       // 현재 플레이어 강제 초기화 및 재생
-      await player.stop(); // 현재 재생 중인 것을 강제 중지
-      await player
-          .setSource(AssetSource('audios/${type.fileName}')); // 음원 강제 리로드
+      await player.stop();
+      await player.setAsset('assets/audios/${type.fileName}');
       await player.setVolume(1.0);
-      player.resume(); // 새로운 재생 시작
+      player.play();
 
       // 다음 플레이어로 이동
       _currentIndices[type] = (currentIndex + 1) % players.length;
