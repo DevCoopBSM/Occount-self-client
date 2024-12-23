@@ -1,20 +1,18 @@
-import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
-import 'package:counter/ui/components/button.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
+import 'package:counter/ui/_constant/component/button.dart';
 
 AlertDialog popUp(BuildContext context, String message) {
   return AlertDialog(
-    title: const Text(
-      'message',
+    title: Text(
+      message,
       style: DevCoopTextStyle.bold_40,
     ),
     actions: <Widget>[
-      buildCustomButton(
+      mainTextButton(
         text: "확인",
-        icon: Icons.logout,
-        onPressed: () {
-          Get.offAndToNamed("/");
+        onTap: () {
+          Navigator.of(context).pushReplacementNamed('/');
         },
       )
     ],

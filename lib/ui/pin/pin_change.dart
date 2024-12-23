@@ -1,11 +1,10 @@
-import 'package:counter/controller/change_pw_api.dart';
-import 'package:counter/secure/db.dart';
-import 'package:counter/ui/_constant/component/button.dart';
-import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
-import 'package:counter/ui/_constant/theme/devcoop_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
+import 'package:provider/provider.dart';
+import '../_constant/component/button.dart';
+import '../_constant/theme/devcoop_text_style.dart';
+import '../_constant/theme/devcoop_colors.dart';
+import '../../provider/pin_change_provider.dart';
 
 class PinChange extends StatefulWidget {
   const PinChange({Key? key}) : super(key: key);
@@ -23,40 +22,75 @@ class _PinChangeState extends State<PinChange> {
   final FocusNode _pinFocus = FocusNode();
   final FocusNode _newPinFocus = FocusNode();
 
-  final dbSecure = DbSecure();
+  TextEditingController _activeController = TextEditingController();
 
   void _setActiveController(TextEditingController controller) {
-    setState(() {});
+    setState(() {
+      _activeController = controller;
+    });
   }
 
   @override
   void initState() {
     super.initState();
-    // 화면이 나타난 후에 포커스를 지정
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_idFocus);
     });
   }
 
-  void onNumberButtonPressed(
-    int number,
-    TextEditingController activeController,
-  ) {
-    String currentText = activeController.text;
+  void onNumberButtonPressed(int number) {
+    String currentText = _activeController.text;
 
     if (number == 10) {
-      activeController.clear(); // Clear focus and text
+      _activeController.clear();
     } else if (number == 12) {
-      // Del button
       if (currentText.isNotEmpty) {
         String newText = currentText.substring(0, currentText.length - 1);
-        activeController.text = newText;
+        _activeController.text = newText;
       }
     } else {
-      // 숫자 버튼 (0 포함)
       String newText = currentText + (number == 11 ? '0' : number.toString());
-      activeController.text = newText;
+      _activeController.text = newText;
     }
+  }
+
+  void _handlePinChange() {
+    final pinChangeProvider =
+        Provider.of<PinChangeProvider>(context, listen: false);
+
+    if (_idController.text.isEmpty ||
+        _pinController.text.isEmpty ||
+        _newPinController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('모든 필드를 입력해주세요')),
+      );
+      return;
+    }
+
+    pinChangeProvider
+        .changePinNumber(
+      _idController.text,
+      _pinController.text,
+      _newPinController.text,
+      context,
+    )
+        .then((success) {
+      if (success && mounted) {
+        Navigator.of(context).pushReplacementNamed('/');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _activeController.dispose();
+    _idController.dispose();
+    _pinController.dispose();
+    _newPinController.dispose();
+    _idFocus.dispose();
+    _pinFocus.dispose();
+    _newPinFocus.dispose();
+    super.dispose();
   }
 
   @override
@@ -96,8 +130,7 @@ class _PinChangeState extends State<PinChange> {
                                     onTap: () {
                                       int number = j + 1 + i * 3;
                                       onNumberButtonPressed(
-                                          number == 11 ? 0 : number,
-                                          _pinController);
+                                          number == 11 ? 0 : number);
                                     },
                                     child: Container(
                                       width: 95,
@@ -278,7 +311,7 @@ class _PinChangeState extends State<PinChange> {
                               Expanded(
                                 child: GestureDetector(
                                   onTap: () {
-                                    _setActiveController(_pinController);
+                                    _setActiveController(_newPinController);
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
@@ -327,19 +360,14 @@ class _PinChangeState extends State<PinChange> {
                               mainTextButton(
                                 text: '처음으로',
                                 onTap: () {
-                                  Get.offAllNamed('/');
+                                  Navigator.of(context)
+                                      .pushReplacementNamed('/');
                                 },
                               ),
                               mainTextButton(
                                 text: '다음으로',
                                 onTap: () {
-                                  // API 호출
-                                  changePw(
-                                    _idController,
-                                    _pinController,
-                                    _newPinController,
-                                    context,
-                                  );
+                                  _handlePinChange();
                                 },
                               ),
                               // 서버에서 response 받은 에러메세지 출력

@@ -1,15 +1,21 @@
-import 'package:counter/provider/bottom_navigation_provider.dart';
-import 'package:counter/ui/barcode/barcode_page.dart';
-import 'package:counter/ui/components/self_counter_widget.dart';
-import 'package:counter/ui/pin/pin_change.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:counter/ui/login/barcode_scan_page.dart';
+import 'package:counter/ui/payments/payment_page.dart';
 
-Widget navigationBody(BottomNavigationProvider provider) {
-  return provider.currentPage == 0
-      ? const BarcodePage()
-      : provider.currentPage == 1
-          ? const PinChange()
-          : const SelfCounterWidget();
+class NavigationBody extends StatelessWidget {
+  final int index;
+
+  const NavigationBody({Key? key, required this.index}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    switch (index) {
+      case 0:
+        return const BarcodeScanPage();
+      case 1:
+        return const PaymentPage();
+      default:
+        return const BarcodeScanPage();
+    }
+  }
 }

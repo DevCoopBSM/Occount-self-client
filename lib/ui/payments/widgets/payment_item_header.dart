@@ -6,27 +6,37 @@ class PaymentItemHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       children: [
-        const Expanded(
+        Expanded(
+          flex: 4,
           child: Text('상품 이름', style: DevCoopTextStyle.medium_30),
         ),
-        Container(
-          width: 100,
-          alignment: Alignment.center,
-          child: const Text('이벤트', style: DevCoopTextStyle.medium_30),
+        Expanded(
+          flex: 1,
+          child: Text(
+            '이벤트',
+            style: DevCoopTextStyle.medium_30,
+            textAlign: TextAlign.center,
+          ),
         ),
-        Container(
-          width: 155,
-          alignment: Alignment.centerRight,
-          child: const Text('수량', style: DevCoopTextStyle.medium_30),
+        Expanded(
+          flex: 1,
+          child: Text(
+            '수량',
+            style: DevCoopTextStyle.medium_30,
+            textAlign: TextAlign.center,
+          ),
         ),
-        Container(
-          width: 155,
-          alignment: Alignment.centerRight,
-          child: const Text('상품 가격', style: DevCoopTextStyle.medium_30),
+        Expanded(
+          flex: 2,
+          child: Text(
+            '상품 가격',
+            style: DevCoopTextStyle.medium_30,
+            textAlign: TextAlign.right,
+          ),
         ),
-        const SizedBox(width: 118), // 버튼 공간
+        SizedBox(width: 20),
       ],
     );
   }

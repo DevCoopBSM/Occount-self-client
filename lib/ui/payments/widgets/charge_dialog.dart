@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import '../../../controller/payment_controller.dart';
+import 'package:provider/provider.dart';
+import 'package:counter/ui/_constant/component/button.dart';
+import '../../../provider/payment_provider.dart';
 import '../../_constant/theme/devcoop_colors.dart';
 import '../../_constant/util/number_format_util.dart';
+import '../../_constant/theme/devcoop_text_style.dart';
 
-class ChargeDialog extends GetView<PaymentController> {
+class ChargeDialog extends StatelessWidget {
   const ChargeDialog({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final paymentProvider = Provider.of<PaymentProvider>(context);
+
     return AlertDialog(
-      title: const Text(
+      title: Text(
         '아리페이 충전',
-        style: TextStyle(
+        style: DevCoopTextStyle.bold_40.copyWith(
           fontSize: 24,
-          fontWeight: FontWeight.bold,
+          color: DevCoopColors.black,
         ),
         textAlign: TextAlign.center,
       ),
@@ -24,75 +28,66 @@ class ChargeDialog extends GetView<PaymentController> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Obx(() => Text(
-                  '충전 금액: ${NumberFormatUtil.convert1000Number(controller.chargeAmount.value)}원',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                )),
+            Text(
+              '충전 금액: ${NumberFormatUtil.convert1000Number(paymentProvider.chargeAmount)}원',
+              style: DevCoopTextStyle.bold_40.copyWith(
+                fontSize: 30,
+                color: DevCoopColors.primary,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 20),
-            _buildAmountButtons(),
+            _buildAmountButtons(paymentProvider),
             const SizedBox(height: 20),
-            _buildActionButtons(),
+            _buildActionButtons(context, paymentProvider),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAmountButtons() {
+  Widget _buildAmountButtons(PaymentProvider provider) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildAmountButton('+1000', () => controller.addChargeAmount(1000)),
-            _buildAmountButton('+100', () => controller.addChargeAmount(100)),
+            _buildAmountButton('+1000', () => provider.addChargeAmount(1000)),
+            _buildAmountButton('+100', () => provider.addChargeAmount(100)),
           ],
         ),
         const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildAmountButton('+10', () => controller.addChargeAmount(10)),
-            _buildAmountButton('+1', () => controller.addChargeAmount(1)),
+            _buildAmountButton('+10', () => provider.addChargeAmount(10)),
+            _buildAmountButton('+1', () => provider.addChargeAmount(1)),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(BuildContext context, PaymentProvider provider) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildAmountButton('초기화', () => controller.resetChargeAmount(),
+        _buildAmountButton('초기화', () => provider.resetChargeAmount(),
             color: DevCoopColors.error),
-        _buildAmountButton('완료', () => controller.confirmCharge(),
-            color: DevCoopColors.primary),
+        _buildAmountButton('완료', () {
+          provider.confirmCharge(context);
+          Navigator.of(context).pop();
+        }, color: DevCoopColors.primary),
       ],
     );
   }
 
   Widget _buildAmountButton(String text, VoidCallback onPressed,
       {Color? color}) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color ?? DevCoopColors.primaryLight,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+    return mainTextButton(
+      text: text,
+      onTap: onPressed,
+      color: color,
     );
   }
 }

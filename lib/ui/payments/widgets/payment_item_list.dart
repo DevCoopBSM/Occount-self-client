@@ -1,27 +1,32 @@
 import 'package:flutter/material.dart';
-import '../../../controller/payment_controller.dart';
-import 'package:get/get.dart';
-import 'payment_item_tile.dart';
+import 'package:provider/provider.dart';
+import 'payment_item_card.dart';
+import '../../../provider/auth_provider.dart';
 
-class PaymentItemList extends GetView<PaymentController> {
+class PaymentItemList extends StatelessWidget {
   const PaymentItemList({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () => Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: controller.itemResponses.length,
-              itemBuilder: (context, index) {
-                final item = controller.itemResponses[index];
-                return PaymentItemTile(item: item);
-              },
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        if (authProvider.cartItems.isEmpty) {
+          return const Center(
+            child: Text(
+              '상품을 추가해주세요',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
-          ),
-        ],
-      ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: authProvider.cartItems.length,
+          itemBuilder: (context, index) {
+            final item = authProvider.cartItems[index];
+            return PaymentItemCard(item: item);
+          },
+        );
+      },
     );
   }
 }

@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import '../../../controller/payment_controller.dart';
-import 'product_type_selector.dart';
-import 'product_list.dart';
 import 'barcode_input.dart';
+import 'payment_item_header.dart';
 
-class ProductSelectionPanel extends GetView<PaymentController> {
+class ProductSelectionPanel extends StatelessWidget {
   const ProductSelectionPanel({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: const Column(
-        children: [
-          ProductTypeSelector(),
-          SizedBox(height: 20),
-          BarcodeInput(),
-          SizedBox(height: 20),
-          Divider(color: Colors.black, thickness: 4),
-          Expanded(child: ProductList()),
-        ],
-      ),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          alignment: Alignment.centerRight,
+          child: const BarcodeInput(),
+        ),
+        const SizedBox(height: 20),
+        const Divider(color: Colors.black, thickness: 4),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const PaymentItemHeader(),
+          ),
+        ),
+      ],
     );
   }
 }
