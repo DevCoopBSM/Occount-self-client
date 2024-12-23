@@ -1,6 +1,6 @@
-import 'package:counter/ui/_constant/theme/devcoop_colors.dart';
-import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
-import 'package:counter/utils/sound_utils.dart';
+import 'package:occount_self/ui/_constant/theme/devcoop_colors.dart';
+import 'package:occount_self/ui/_constant/theme/devcoop_text_style.dart';
+import 'package:occount_self/utils/sound_utils.dart';
 import 'package:flutter/material.dart';
 
 class MainTextButton extends StatefulWidget {

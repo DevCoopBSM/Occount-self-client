@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:counter/models/cart_item.dart';
-import 'package:counter/ui/_constant/theme/devcoop_colors.dart';
-import 'package:counter/ui/_constant/theme/devcoop_text_style.dart';
-import 'package:counter/ui/_constant/component/button.dart';
-import 'package:counter/ui/_constant/util/number_format_util.dart';
+import 'package:occount_self/models/cart_item.dart';
+import 'package:occount_self/ui/_constant/theme/devcoop_colors.dart';
+import 'package:occount_self/ui/_constant/theme/devcoop_text_style.dart';
+import 'package:occount_self/ui/_constant/component/button.dart';
+import 'package:occount_self/ui/_constant/util/number_format_util.dart';
 
 Widget paymentsItem({
   required String itemName,

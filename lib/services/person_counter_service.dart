@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:logging/logging.dart';
-import 'package:counter/utils/sound_utils.dart';
+import 'package:occount_self/utils/sound_utils.dart';
 
 class PersonCounterService {
   WebSocketChannel? _channel;

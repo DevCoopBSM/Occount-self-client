@@ -1,4 +1,4 @@
-import 'package:counter/provider/count_provider.dart';
+import 'package:occount_self/provider/count_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

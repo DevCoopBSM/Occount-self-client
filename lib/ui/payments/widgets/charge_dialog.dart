@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:counter/ui/_constant/component/button.dart';
+import 'package:occount_self/ui/_constant/component/button.dart';
 import '../../../provider/payment_provider.dart';
 import '../../_constant/theme/devcoop_colors.dart';
 import '../../_constant/util/number_format_util.dart';

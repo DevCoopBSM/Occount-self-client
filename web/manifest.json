@@ -1,6 +1,6 @@
 {
-    "name": "devcoop_self_counter_v1",
-    "short_name": "devcoop_self_counter_v1",
+    "name": "Occount Self",
+    "short_name": "Occount Self",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

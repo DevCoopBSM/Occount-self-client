@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:counter/ui/login/barcode_scan_page.dart';
-import 'package:counter/ui/payments/payment_page.dart';
+import 'package:occount_self/ui/login/barcode_scan_page.dart';
+import 'package:occount_self/ui/payments/payment_page.dart';
 
 class NavigationBody extends StatelessWidget {
   final int index;
