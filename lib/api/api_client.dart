@@ -16,14 +16,20 @@ class ApiClient {
   })  : _client = client,
         _apiConfig = apiConfig;
 
-  Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('accessToken');
-    _logger.fine('🔑 Using token: ${token?.substring(0, 10)}...');
-    return {
+  Future<Map<String, String>> _getHeaders({bool requiresAuth = true}) async {
+    final headers = {
       'Content-Type': 'application/json',
-      'Authorization': token != null ? 'Bearer $token' : '',
     };
+
+    if (requiresAuth) {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken');
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+
+    return headers;
   }
 
   Future<T> get<T>(
@@ -64,22 +70,20 @@ class ApiClient {
   }
 
   Future<T> post<T>(
-    String path,
+    String endpoint,
     dynamic body,
-    T Function(Map<String, dynamic>) fromJson,
-  ) async {
+    T Function(dynamic json) fromJson, {
+    bool requiresAuth = false,
+  }) async {
     try {
-      final url = Uri.parse('${_apiConfig.API_HOST}$path');
-      _logger.info('🌐 POST 요청: $url');
-      _logger.fine('📤 요청 바디: $body');
+      final uri = Uri.parse('${_apiConfig.API_HOST}$endpoint');
+      final headers = await _getHeaders(requiresAuth: requiresAuth);
 
-      final headers = await _getHeaders();
-      _logger.fine('📤 Headers: $headers');
-
+      _logger.info('🌐 POST 요청: $uri');
       final response = await _client.post(
-        url,
+        uri,
         headers: headers,
-        body: json.encode(body),
+        body: jsonEncode(body),
       );
 
       _logger.info('📥 응답 상태 코드: ${response.statusCode}');

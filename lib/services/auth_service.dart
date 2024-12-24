@@ -20,6 +20,7 @@ class AuthService {
           'userPin': userPin,
         },
         (json) => AuthResponse.fromJson(json),
+        requiresAuth: false,
       );
       _logger.info('✅ 로그인 성공');
       return response;
