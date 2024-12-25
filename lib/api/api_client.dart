@@ -6,19 +6,19 @@ import 'api_config.dart';
 import '../exception/api_exception.dart';
 
 class ApiClient {
-  final http.Client _client;
-  final ApiConfig _apiConfig;
+  final http.Client client;
+  final ApiConfig apiConfig;
   final Logger _logger = Logger('ApiClient');
 
   ApiClient({
-    required http.Client client,
-    required ApiConfig apiConfig,
-  })  : _client = client,
-        _apiConfig = apiConfig;
+    required this.client,
+    required this.apiConfig,
+  });
 
   Future<Map<String, String>> _getHeaders({bool requiresAuth = true}) async {
     final headers = {
       'Content-Type': 'application/json',
+      'X-API-Key': apiConfig.API_KEY,
     };
 
     if (requiresAuth) {
@@ -38,14 +38,14 @@ class ApiClient {
     Map<String, dynamic>? queryParams,
   }) async {
     try {
-      final uri = Uri.parse('${_apiConfig.API_HOST}$endpoint')
+      final uri = Uri.parse('${apiConfig.API_HOST}$endpoint')
           .replace(queryParameters: queryParams);
       _logger.info('🌐 GET 요청: $uri');
 
       final headers = await _getHeaders();
       _logger.fine('📤 Headers: $headers');
 
-      final response = await _client.get(
+      final response = await client.get(
         uri,
         headers: headers,
       );
@@ -77,19 +77,21 @@ class ApiClient {
 
   Future<T> post<T>(
     String endpoint,
-    dynamic body,
-    T Function(dynamic json) fromJson, {
+    dynamic data,
+    T Function(dynamic) parser, {
     bool requiresAuth = true,
   }) async {
     try {
-      final uri = Uri.parse('${_apiConfig.API_HOST}$endpoint');
-      final headers = await _getHeaders(requiresAuth: requiresAuth);
-
+      final uri = Uri.parse('${apiConfig.API_HOST}$endpoint');
       _logger.info('🌐 POST 요청: $uri');
-      final response = await _client.post(
+
+      final headers = await _getHeaders(requiresAuth: requiresAuth);
+      _logger.fine('📤 Headers: $headers');
+
+      final response = await client.post(
         uri,
         headers: headers,
-        body: jsonEncode(body),
+        body: jsonEncode(data),
       );
 
       _logger.info('📥 응답 상태 코드: ${response.statusCode}');
@@ -99,7 +101,7 @@ class ApiClient {
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         _logger.info('✅ POST 요청 성공');
-        return fromJson(data);
+        return parser(data);
       }
 
       _logger.warning('❌ POST 요청 실패: ${response.statusCode}');
@@ -130,14 +132,14 @@ class ApiClient {
     T Function(Map<String, dynamic>)? fromJson,
   ]) async {
     try {
-      final url = Uri.parse('${_apiConfig.API_HOST}$path');
+      final url = Uri.parse('${apiConfig.API_HOST}$path');
       _logger.info('🌐 PUT 요청: $url');
       _logger.fine('📤 요청 바디: $body');
 
       final headers = await _getHeaders();
       _logger.fine('📤 Headers: $headers');
 
-      final response = await _client.put(
+      final response = await client.put(
         url,
         headers: headers,
         body: json.encode(body),

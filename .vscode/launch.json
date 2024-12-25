@@ -1,0 +1,37 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "occount_self (web)",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "-d",
+                "chrome",
+                "--dart-define=API_KEY=ok_B20pJkiE53gRTFBrz82gX4HeuUhKtl9D2Ru7-mL9Y9I=",
+                "--dart-define=API_HOST=https://10.129.57.12:8443",
+                "--web-port=3000" 
+            ]
+        },
+        {
+            "name": "devcoop_self_counter_v1",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "devcoop_self_counter_v1 (profile mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "devcoop_self_counter_v1 (release mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}
