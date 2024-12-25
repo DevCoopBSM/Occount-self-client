@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import 'auth_provider.dart';
 import '../models/payment_response.dart';
 import '../exception/payment_exception.dart';
-import '../main.dart'; // globalNavigatorKey를 위한 import
+import '../exception/api_exception.dart';
 
 class PaymentProvider extends ChangeNotifier {
   final PaymentService _paymentService;
@@ -23,6 +23,7 @@ class PaymentProvider extends ChangeNotifier {
   String? _error;
   int _chargeAmount = 0;
   final List<NonBarcodeItemResponse> _nonBarcodeItems = [];
+  bool _isProcessingDialogVisible = false;
 
   PaymentProvider(this._paymentService, this._itemService, this._chargeService);
 
@@ -59,11 +60,25 @@ class PaymentProvider extends ChangeNotifier {
       notifyListeners();
 
       final item = await _itemService.getItemByCode(barcode);
-      if (!context.mounted) return; // BuildContext 체크 추가
+      if (!context.mounted) return;
 
-      final cartItem = CartItem.fromItemResponse(item);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      authProvider.addToCart(cartItem);
+
+      // 이미 장바구니에 있는 상품인지 확인
+      final existingItemIndex = authProvider.cartItems
+          .indexWhere((cartItem) => cartItem.itemCode == item.itemCode);
+
+      if (existingItemIndex != -1) {
+        // 이미 있는 상품이면 수량만 증가
+        authProvider
+            .increaseQuantity(authProvider.cartItems[existingItemIndex].itemId);
+        _logger.info('🔄 기존 상품 수량 증가: ${item.itemName}');
+      } else {
+        // 새로운 상품이면 장바구니에 추가
+        final cartItem = CartItem.fromItemResponse(item);
+        authProvider.addToCart(cartItem);
+        _logger.info('➕ 새 상품 추가: ${item.itemName}');
+      }
     } catch (e) {
       _error = '상품 추가에 실패했습니다';
       _logger.severe('상품 추가 실패: $e');
@@ -78,37 +93,70 @@ class PaymentProvider extends ChangeNotifier {
     required String userName,
     required BuildContext context,
   }) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // 상품이 없는 경우 먼저 체크
+    if (authProvider.cartItems.isEmpty) {
+      _logger.info('⚠️ 상품이 없는 상태에서 결제 시도');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('상품을 추가해주세요')),
+        );
+      }
+      return;
+    }
+
+    _isProcessingDialogVisible = true;
+
+    // 결제 진행 중 모달 표시
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          final calculation = calculatePayment(
+              authProvider.cartItems, authProvider.userInfo.userPoint);
+
+          return PaymentProcessingDialog(
+            totalAmount: calculation.totalPrice,
+            paymentAmount: calculation.expectedPoints,
+            cardAmount: calculation.expectedCardAmount,
+            isChargeOnly: calculation.isChargeOnly,
+            hasCharge: calculation.hasCharge,
+            onClose: () {
+              cancelPayment(context);
+              Navigator.of(context).pop();
+            },
+          );
+        },
+      );
+    }
+
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.cartItems.isEmpty) {
         _logger.info('⚠️ 상품이 없는 상태에서 결제 시도');
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('상품을 추가해주세요')),
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => PaymentProcessingDialog(
+              totalAmount: 0,
+              paymentAmount: 0,
+              cardAmount: 0,
+              isChargeOnly: false,
+              hasCharge: false,
+              onClose: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('상품을 추가해주세요')),
+                );
+              },
+            ),
           );
         }
         return;
       }
-
-      // 결제 계산
-      final calculation = calculatePayment(
-        authProvider.cartItems,
-        authProvider.userInfo.userPoint,
-      );
-
-      // 결제 진행 다이얼로그 표시
-      if (!context.mounted) return;
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => PaymentProcessingDialog(
-          totalAmount: calculation.totalPrice,
-          paymentAmount: calculation.expectedPoints,
-          cardAmount: calculation.expectedCardAmount,
-          isChargeOnly: calculation.isChargeOnly,
-        ),
-      );
 
       // 결제 API 요청
       _logger.info('💰 결제 API 요청 시작');
@@ -118,64 +166,32 @@ class PaymentProvider extends ChangeNotifier {
         userName: userName,
       );
 
-      // API 요청이 완료되면 진행 다이얼로그 닫기
-      if (context.mounted) {
-        Navigator.of(context).pop();
+      // 모달이 이미 닫혔다면 응답 처리하지 않음
+      if (!_isProcessingDialogVisible) {
+        _logger.info('💡 결제 진행 중 모달이 닫혀 응답을 무시합니다');
+        return;
       }
 
-      if (!context.mounted) return;
+      if (context.mounted) {
+        Navigator.of(context).pop(); // 진행 중 모달 닫기
+      }
 
       // 결제 완료 후 장바구니 초기화
       authProvider.clearCart();
 
       // 결제 결과 다이얼로그 표시
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => PaymentResultDialog(
-          response: result,
-        ),
-      );
-
       if (context.mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/scan',
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      _logger.severe('💳 결제 처리 중 오류 발생: $e');
-
-      if (!context.mounted) return;
-      Navigator.of(context).pop(); // 진행 다이얼로그 닫기
-
-      // 409 에러인 경우 특별 처리
-      if (e is PaymentException && e.status == 409) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('다른 단말기에서 결제가 진행 중입니다.\n잠시 후 다시 시도해주세요.'),
-            duration: Duration(seconds: 3),
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PaymentResultDialog(
+            response: result,
+            isSuccess: result.success,
+            shouldReturnToHome: true,
           ),
         );
-        return;
-      }
 
-      // 다른 에러의 경우 기존과 동일하게 처리
-      if (!context.mounted) return;
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => PaymentResultDialog(
-          response: null,
-          errorMessage:
-              e is PaymentException ? e.message : '결제 처리 중 오류가 발생했습니다',
-        ),
-      );
-
-      if (context.mounted) {
-        if (!(e is PaymentException) || (e as PaymentException).status != 409) {
+        if (context.mounted) {
           Navigator.pushNamedAndRemoveUntil(
             context,
             '/scan',
@@ -183,6 +199,63 @@ class PaymentProvider extends ChangeNotifier {
           );
         }
       }
+    } catch (e) {
+      _logger.severe('❌ 결제 처리 실패: $e');
+
+      // 모달이 이미 닫혔다면 에러 처리하지 않음
+      if (!_isProcessingDialogVisible) {
+        _logger.info('💡 결제 진행 중 모달이 닫혀 에러를 무시합니다');
+        return;
+      }
+
+      if (context.mounted) {
+        Navigator.of(context).pop(); // 진행 중 모달 닫기
+
+        String errorMessage;
+        String errorCode = '';
+        bool shouldReturnToHome = false;
+
+        if (e is ApiException) {
+          errorMessage = e.message;
+          errorCode = e.code.code;
+          // 타임아웃이나 결제 실패의 경우 장바구니 유지
+          shouldReturnToHome = ![
+            ApiErrorCode.paymentTimeout,
+            ApiErrorCode.paymentFailed,
+            ApiErrorCode.paymentCancelled,
+          ].contains(e.code);
+        } else if (e is PaymentException) {
+          errorMessage = e.message;
+          errorCode = e.code;
+          shouldReturnToHome =
+              !['PAYMENT_TIMEOUT', 'PAYMENT_FAILED'].contains(e.code);
+        } else {
+          errorMessage = '결제 처리 중 오류가 발생했습니다';
+          shouldReturnToHome = true;
+        }
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PaymentResultDialog(
+            errorMessage: errorMessage,
+            errorCode: errorCode,
+            isSuccess: false,
+            shouldReturnToHome: shouldReturnToHome,
+          ),
+        );
+
+        // 홈으로 돌아가야 하는 경우에만 네비게이션 실행
+        if (shouldReturnToHome && context.mounted) {
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/scan',
+            (route) => false,
+          );
+        }
+      }
+    } finally {
+      _isProcessingDialogVisible = false;
     }
   }
 
@@ -230,19 +303,18 @@ class PaymentProvider extends ChangeNotifier {
     final hasCharge = items.any((item) => item.itemCategory == 'CHARGE');
     final isChargeOnly = items.every((item) => item.itemCategory == 'CHARGE');
 
-    // 충전 아이템이 있는 경우
     if (hasCharge) {
       final chargeAmount = getSingleChargeAmount(items);
       return PaymentCalculation(
         totalPrice: totalPrice,
         chargeAmount: chargeAmount,
-        expectedPoints: 0, // 포인트 사용 안함
-        expectedCardAmount: totalPrice, // 전체 금액 카드 결제
+        expectedPoints: 0,
+        expectedCardAmount: totalPrice,
         isChargeOnly: isChargeOnly,
+        hasCharge: true,
       );
     }
 
-    // 일반 상품만 있는 경우
     final availablePoints = currentPoints;
     final expectedPoints =
         totalPrice <= availablePoints ? totalPrice : availablePoints;
@@ -255,6 +327,7 @@ class PaymentProvider extends ChangeNotifier {
       expectedPoints: expectedPoints,
       expectedCardAmount: expectedCardAmount,
       isChargeOnly: false,
+      hasCharge: false,
     );
   }
 
@@ -275,8 +348,52 @@ class PaymentProvider extends ChangeNotifier {
     }
   }
 
-  void cancelPayment() {
-    _logger.info('💡 결제가 취소되었습니다');
+  Future<void> cancelPayment(BuildContext context) async {
+    try {
+      _logger.info('💡 결제가 취소되었습니다');
+      _isProcessingDialogVisible = false;
+
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      _logger.severe('❌ 결제 취소 실패: $e');
+    }
+  }
+
+  void addNonBarcodeItem(BuildContext context, NonBarcodeItemResponse item) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // 이미 장바구니에 있는 아이템인지 확인
+    final existingItemIndex = authProvider.cartItems
+        .indexWhere((cartItem) => cartItem.itemId == item.itemId);
+
+    if (existingItemIndex != -1) {
+      // 이미 있는 아이템이면 수량만 증가
+      authProvider.increaseQuantity(item.itemId);
+      _logger.info('🔄 기존 상품 수량 증가: ${item.itemName}');
+    } else {
+      // 새 아이템이면 장바구니에 추가
+      final cartItem = CartItem(
+        itemId: item.itemId,
+        itemName: item.itemName,
+        itemPrice: item.itemPrice,
+        itemCode: item.itemCode,
+        quantity: 1,
+        itemCategory: item.itemCategory,
+      );
+      authProvider.addToCart(cartItem);
+      _logger.info('➕ 새 상품 추가: ${item.itemName}');
+    }
+  }
+
+  Future<void> retryPayment(BuildContext context) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await processPayment(
+      userCode: authProvider.userInfo.userCode,
+      userName: authProvider.userInfo.userName,
+      context: context,
+    );
   }
 }
 
@@ -287,6 +404,7 @@ class PaymentCalculation {
   final int expectedPoints;
   final int expectedCardAmount;
   final bool isChargeOnly;
+  final bool hasCharge;
 
   PaymentCalculation({
     required this.totalPrice,
@@ -294,5 +412,6 @@ class PaymentCalculation {
     required this.expectedPoints,
     required this.expectedCardAmount,
     required this.isChargeOnly,
+    required this.hasCharge,
   });
 }

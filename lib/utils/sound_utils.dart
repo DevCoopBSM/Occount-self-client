@@ -3,8 +3,8 @@ import 'package:logging/logging.dart';
 
 enum SoundType {
   click('click.mp3'),
-  success('success.mp3'),
-  error('error.mp3'),
+  success('success.wav'),
+  error('error.wav'),
   welcome('welcome.mp3'),
   goodbye('goodbye.mp3');
 
@@ -18,7 +18,7 @@ class SoundUtils {
   static final Map<SoundType, int> _currentIndices = {};
   static final Set<SoundType> _initializedTypes = {};
 
-  static const _poolSize = 3; // 각 사운드 타입당 플레이어 수
+  static const _poolSize = 10; // 각 사운드 타입당 플레이어 수
 
   static Future<void> _initializeType(SoundType type) async {
     if (_initializedTypes.contains(type)) return;

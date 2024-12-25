@@ -59,9 +59,15 @@ class ApiClient {
       }
 
       _logger.warning('❌ GET 요청 실패: ${response.statusCode}');
-      throw ApiException.fromErrorCode(
-        _getErrorCodeFromStatus(response.statusCode),
-        '요청 실패: ${response.statusCode}',
+
+      // 에러 응답 파싱 추가
+      final errorBody = utf8.decode(response.bodyBytes);
+      final errorData = json.decode(errorBody);
+
+      throw ApiException(
+        code: _getErrorCodeFromStatus(response.statusCode, errorData['code']),
+        message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
+        status: errorData['status'] ?? 'FAIL',
       );
     } catch (e) {
       _logger.severe('❌ GET 요청 에러: $e');
@@ -73,7 +79,7 @@ class ApiClient {
     String endpoint,
     dynamic body,
     T Function(dynamic json) fromJson, {
-    bool requiresAuth = false,
+    bool requiresAuth = true,
   }) async {
     try {
       final uri = Uri.parse('${_apiConfig.API_HOST}$endpoint');
@@ -97,11 +103,22 @@ class ApiClient {
       }
 
       _logger.warning('❌ POST 요청 실패: ${response.statusCode}');
-      throw ApiException.fromErrorCode(
-        _getErrorCodeFromStatus(response.statusCode),
-        '요청 실패: ${response.statusCode}',
+
+      // 서버 에러 응답 파싱
+      final errorBody = utf8.decode(response.bodyBytes);
+      final errorData = json.decode(errorBody);
+
+      final apiErrorCode =
+          _getErrorCodeFromStatus(response.statusCode, errorData['code']);
+      throw ApiException(
+        code: apiErrorCode,
+        message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
+        status: errorData['status'] ?? 'FAIL',
       );
     } catch (e) {
+      if (e is ApiException) {
+        rethrow;
+      }
       _logger.severe('❌ POST 요청 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -140,9 +157,15 @@ class ApiClient {
       }
 
       _logger.warning('❌ PUT 요청 실패: ${response.statusCode}');
-      throw ApiException.fromErrorCode(
-        _getErrorCodeFromStatus(response.statusCode),
-        '요청 실패: ${response.statusCode}',
+
+      // 에러 응답 파싱 추가
+      final errorBody = utf8.decode(response.bodyBytes);
+      final errorData = json.decode(errorBody);
+
+      throw ApiException(
+        code: _getErrorCodeFromStatus(response.statusCode, errorData['code']),
+        message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
+        status: errorData['status'] ?? 'FAIL',
       );
     } catch (e) {
       _logger.severe('❌ PUT 요청 에러: $e');
@@ -150,13 +173,28 @@ class ApiClient {
     }
   }
 
-  ApiErrorCode _getErrorCodeFromStatus(int statusCode) {
-    _logger.fine('🔍 상태 코드 매핑: $statusCode');
+  ApiErrorCode _getErrorCodeFromStatus(int statusCode, String? errorCode) {
+    _logger.fine('🔍 상태 코드 매핑: $statusCode, 에러 코드: $errorCode');
+
+    // 서버에서 보낸 에러 코드가 있으면 먼저 확인
+    if (errorCode != null) {
+      for (var code in ApiErrorCode.values) {
+        if (code.code == errorCode) {
+          return code;
+        }
+      }
+    }
+
+    // 기본 상태 코드 기반 매핑
     switch (statusCode) {
       case 401:
         return ApiErrorCode.unauthorized;
       case 404:
         return ApiErrorCode.notFound;
+      case 408:
+        return ApiErrorCode.paymentTimeout;
+      case 409:
+        return ApiErrorCode.transactionInProgress;
       case 500:
         return ApiErrorCode.serverError;
       default:

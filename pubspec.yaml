@@ -40,6 +40,7 @@ dev_dependencies:
   # json_serializable: ^6.7.1
   # flutter_svg: ^2.0.10+1
   # audioplayers: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -58,3 +59,11 @@ flutter:
     - family: GmarketSansM
       fonts:
         - asset: assets/fonts/GmarketSansM.otf
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icons/ringOring.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/ringOring.png"

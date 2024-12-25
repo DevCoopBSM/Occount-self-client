@@ -80,19 +80,11 @@ class PaymentActionButtons extends StatelessWidget {
                   return;
                 }
 
-                try {
-                  await paymentProvider.processPayment(
-                    context: context,
-                    userCode: authProvider.userInfo.userCode,
-                    userName: authProvider.userInfo.userName,
-                  );
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('결제 처리 중 오류가 발생했습니다: $e')),
-                    );
-                  }
-                }
+                await paymentProvider.processPayment(
+                  context: context,
+                  userCode: authProvider.userInfo.userCode,
+                  userName: authProvider.userInfo.userName,
+                );
               },
             ),
           ],

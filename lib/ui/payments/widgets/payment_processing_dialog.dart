@@ -10,6 +10,8 @@ class PaymentProcessingDialog extends StatelessWidget {
   final int paymentAmount;
   final int cardAmount;
   final bool isChargeOnly;
+  final bool hasCharge;
+  final VoidCallback onClose;
 
   const PaymentProcessingDialog({
     Key? key,
@@ -17,6 +19,8 @@ class PaymentProcessingDialog extends StatelessWidget {
     required this.paymentAmount,
     required this.cardAmount,
     required this.isChargeOnly,
+    required this.hasCharge,
+    required this.onClose,
   }) : super(key: key);
 
   @override
@@ -32,10 +36,32 @@ class PaymentProcessingDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isChargeOnly ? '충전 진행 중' : '결제 진행 중',
-                style: DevCoopTextStyle.bold_40,
+                isChargeOnly
+                    ? '충전 진행 중'
+                    : hasCharge
+                        ? '충전 및 결제 진행 중'
+                        : '결제 진행 중',
+                style: DevCoopTextStyle.bold_40.copyWith(
+                  color: isChargeOnly
+                      ? const Color.fromARGB(255, 0, 255, 89)
+                      : hasCharge
+                          ? const Color.fromARGB(255, 0, 0, 255)
+                          : DevCoopColors.primary,
+                ),
                 textAlign: TextAlign.center,
               ),
+              if (hasCharge && !isChargeOnly) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  '충전과 상품결제가 동시에 있으면\n카드결제로만 진행됩니다.',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
               const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -78,8 +104,7 @@ class PaymentProcessingDialog extends StatelessWidget {
                 onPressed: () {
                   final paymentProvider =
                       Provider.of<PaymentProvider>(context, listen: false);
-                  paymentProvider.cancelPayment();
-                  Navigator.of(context).pop(false);
+                  paymentProvider.cancelPayment(context);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: DevCoopColors.error,
@@ -91,10 +116,7 @@ class PaymentProcessingDialog extends StatelessWidget {
                 ),
                 child: const Text(
                   '결제 취소',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18),
                 ),
               ),
             ],

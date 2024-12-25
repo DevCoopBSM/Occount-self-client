@@ -7,6 +7,7 @@ import '../exception/payment_exception.dart';
 import '../models/payment_request.dart';
 import '../models/cart_item.dart';
 import 'dart:convert';
+import '../exception/api_exception.dart';
 
 class PaymentService {
   final ApiClient _apiClient;
@@ -86,6 +87,8 @@ class PaymentService {
     required String userName,
   }) async {
     try {
+      _logger.info('💰 결제 API 요청 시작');
+
       // 충전 아이템과 일반 상품 분리
       final chargeItem = items.firstWhere(
         (item) => item.itemCategory == 'CHARGE',
@@ -152,41 +155,39 @@ class PaymentService {
 
       _logger.info('📡 요청 데이터: ${jsonEncode(request.toJson())}');
 
-      try {
-        final response = await _apiClient
-            .post(
-          ApiEndpoints.executePayment,
-          request.toJson(),
-          (json) => PaymentResponse.fromJson(json),
-        )
-            .timeout(
-          const Duration(seconds: 31),
-          onTimeout: () {
-            _logger.warning('⚠️ 결제 요청 타임아웃 (31초 초과)');
+      return await _apiClient.post(
+        ApiEndpoints.executePayment,
+        request.toJson(),
+        (json) {
+          final response = PaymentResponse.fromJson(json);
+          if (!response.success) {
             throw PaymentException(
-              code: 'PAYMENT_TIMEOUT',
-              message: '결제 처리 시간이 초과되었습니다.\n잠시 후 다시 시도해주세요.',
-              status: 408,
+              code: 'PAYMENT_FAILED',
+              message: response.message,
+              status: 500,
             );
-          },
-        );
-
-        _logger.info('✅ 결제 성공');
-        return response;
-      } catch (e) {
-        _logger.severe('❌ 결제 처리 중 오류: $e');
-        if (e is PaymentException) {
-          rethrow;
-        }
-        throw PaymentException(
-          code: 'PAYMENT_FAILED',
-          message: '결제 처리 중 오류가 발생했습니다.\n다시 시도해주세요.',
-          status: 500,
-        );
-      }
+          }
+          return response;
+        },
+      );
     } catch (e) {
       _logger.severe('❌ 결제 실패: $e');
-      rethrow;
+
+      // ApiException 처리
+      if (e is ApiException) {
+        rethrow; // ApiException을 그대로 전달
+      }
+
+      // PaymentException 처리
+      if (e is PaymentException) {
+        rethrow; // PaymentException도 그대로 전달
+      }
+
+      // 기타 예외는 ApiException으로 변환
+      throw ApiException.fromErrorCode(
+        ApiErrorCode.serverError,
+        '결제 처리 중 오류가 발생했습니다',
+      );
     }
   }
 

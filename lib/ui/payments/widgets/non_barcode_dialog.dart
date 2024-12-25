@@ -29,29 +29,12 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
   }
 
   void _addItemToCart(BuildContext context, NonBarcodeItemResponse item) {
+    final paymentProvider =
+        Provider.of<PaymentProvider>(context, listen: false);
+    paymentProvider.addNonBarcodeItem(context, item);
+
+    // 현재 장바구니의 총액 계산 및 스낵바 표시
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    // 이미 장바구니에 있는 아이템인지 확인
-    final existingItemIndex = authProvider.cartItems
-        .indexWhere((cartItem) => cartItem.itemId == item.itemId);
-
-    if (existingItemIndex != -1) {
-      // 이미 있는 아이템이면 수량만 증가
-      authProvider.increaseQuantity(item.itemId);
-    } else {
-      // 새 아이템이면 장바구니에 추가
-      final cartItem = CartItem(
-        itemId: item.itemId,
-        itemName: item.itemName,
-        itemPrice: item.itemPrice,
-        itemCode: item.itemCode,
-        quantity: 1,
-        itemCategory: item.itemCategory,
-      );
-      authProvider.addToCart(cartItem);
-    }
-
-    // 현재 장바구니의 총액 계산
     final totalAmount = authProvider.cartItems.fold<int>(
       0,
       (sum, item) => sum + (item.itemPrice * item.quantity),
