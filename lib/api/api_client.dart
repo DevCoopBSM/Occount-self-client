@@ -4,21 +4,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
 import 'api_config.dart';
 import '../exception/api_exception.dart';
+import '../utils/api_key_generator.dart';
 
 class ApiClient {
   final http.Client client;
   final ApiConfig apiConfig;
+  final ApiKeyGenerator _keyGenerator;
   final Logger _logger = Logger('ApiClient');
 
   ApiClient({
     required this.client,
     required this.apiConfig,
-  });
+  }) : _keyGenerator = ApiKeyGenerator(secretKey: apiConfig.API_KEY);
 
   Future<Map<String, String>> _getHeaders({bool requiresAuth = true}) async {
+    final apiKey = _keyGenerator.generateApiKey();
+    _logger.info('🔑 생성된 API 키: $apiKey');
+
     final headers = {
       'Content-Type': 'application/json',
-      'X-API-Key': apiConfig.API_KEY,
+      'X-API-Key': apiKey,
     };
 
     if (requiresAuth) {
