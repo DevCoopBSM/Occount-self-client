@@ -3,6 +3,7 @@ import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../exception/api_exception.dart';
 import '../models/auth_response.dart';
+import '../models/user_info.dart';
 
 class AuthService {
   final ApiClient _apiClient;
@@ -26,11 +27,10 @@ class AuthService {
       return response;
     } catch (e) {
       _logger.severe('❌ 로그인 실패: $e');
-      throw ApiException(
-        code: ApiErrorCode.unauthorized,
-        message: '로그인에 실패했습니다',
-        status: '401',
-      );
+      if (e is ApiException) {
+        rethrow; // ApiException을 그대로 전달
+      }
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }
 

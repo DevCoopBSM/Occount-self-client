@@ -11,6 +11,15 @@ class UserInfo {
     required this.userPoint,
   });
 
+  factory UserInfo.empty() {
+    return UserInfo(
+      userCode: '',
+      userName: '',
+      userNumber: '',
+      userPoint: 0,
+    );
+  }
+
   factory UserInfo.fromJson(Map<String, dynamic> json) {
     return UserInfo(
       userCode: json['userCode'] as String,

@@ -91,8 +91,6 @@ class ApiClient {
       _logger.info('🌐 POST 요청: $uri');
 
       final headers = await _getHeaders(requiresAuth: requiresAuth);
-      _logger.fine('📤 Headers: $headers');
-
       final response = await client.post(
         uri,
         headers: headers,
@@ -100,33 +98,32 @@ class ApiClient {
       );
 
       _logger.info('📥 응답 상태 코드: ${response.statusCode}');
-      _logger.fine('📥 응답 헤더: ${response.headers}');
       _logger.fine('📥 응답 바디: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        _logger.info('✅ POST 요청 성공');
         return parser(data);
       }
 
-      _logger.warning('❌ POST 요청 실패: ${response.statusCode}');
+      // 에러 응답 처리
+      String? errorCode;
+      String? errorMessage;
 
-      // 서버 에러 응답 파싱
-      final errorBody = utf8.decode(response.bodyBytes);
-      final errorData = json.decode(errorBody);
+      if (response.body.isNotEmpty) {
+        try {
+          final errorJson = jsonDecode(response.body);
+          errorCode = errorJson['code'];
+          errorMessage = errorJson['message'];
+        } catch (e) {
+          _logger.severe('❌ 응답 파싱 에러: $e');
+        }
+      }
 
       final apiErrorCode =
-          _getErrorCodeFromStatus(response.statusCode, errorData['code']);
-      throw ApiException(
-        code: apiErrorCode,
-        message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
-        status: errorData['status'] ?? 'FAIL',
-      );
+          _getErrorCodeFromStatus(response.statusCode, errorCode);
+      throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
     } catch (e) {
-      if (e is ApiException) {
-        rethrow;
-      }
-      _logger.severe('❌ POST 요청 에러: $e');
+      if (e is ApiException) rethrow;
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }
@@ -181,20 +178,42 @@ class ApiClient {
   }
 
   ApiErrorCode _getErrorCodeFromStatus(int statusCode, String? errorCode) {
-    _logger.fine('🔍 상태 코드 매핑: $statusCode, 에러 코드: $errorCode');
+    _logger.info('🔍 에러 매핑 시작');
+    _logger.info('📥 서버 응답: statusCode=$statusCode, errorCode=$errorCode');
 
-    // 서버에서 보낸 에러 코드가 있으면 먼저 확인
+    // 특정 에러 코드 먼저 체크
+    if (errorCode == 'DEFAULT_PIN_IN_USE') {
+      _logger.info('✅ 초기 비밀번호 에러 감지');
+      return ApiErrorCode.defaultPinInUse;
+    }
+
+    // 401 상태 코드에 대한 특별한 에러 코드 처리
+    if (statusCode == 401) {
+      if (errorCode == 'TOKEN_EXPIRED') {
+        _logger.info('✅ 토큰 만료 에러 감지');
+        return ApiErrorCode.tokenExpired;
+      } else if (errorCode == 'INVALID_TOKEN') {
+        _logger.info('✅ 유효하지 않은 토큰 에러 감지');
+        return ApiErrorCode.invalidToken;
+      }
+    }
+
+    // 기존 매핑 로직 유지
     if (errorCode != null) {
+      _logger.info('📝 서버 에러 코드: "$errorCode"');
       for (var code in ApiErrorCode.values) {
         if (code.code == errorCode) {
+          _logger.info('✅ 매칭된 에러 코드: ${code.code}');
           return code;
         }
       }
     }
 
-    // 기본 상태 코드 기반 매핑
+    _logger.warning('⚠️ 기본 에러 매핑: statusCode=$statusCode');
     switch (statusCode) {
       case 401:
+        return ApiErrorCode.unauthorized;
+      case 403:
         return ApiErrorCode.unauthorized;
       case 404:
         return ApiErrorCode.notFound;

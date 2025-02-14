@@ -1,4 +1,5 @@
 enum ApiErrorCode {
+  defaultPinInUse(400, 'DEFAULT_PIN_IN_USE'),
   unauthorized(401, 'UNAUTHORIZED'),
   notFound(404, 'NOT_FOUND'),
   serverError(500, 'SERVER_ERROR'),
@@ -6,6 +7,7 @@ enum ApiErrorCode {
   paymentFailed(400, 'PAYMENT_FAILED'),
   itemNotFound(404, 'ITEM_NOT_FOUND'),
   invalidPin(401, 'INVALID_PIN'),
+  invalidToken(401, 'INVALID_TOKEN'),
   fetchPointFailed(500, 'FETCH_POINT_FAILED'),
   tokenExpired(401, 'TOKEN_EXPIRED'),
   paymentTimeout(408, 'PAYMENT_TIMEOUT'),
@@ -13,7 +15,7 @@ enum ApiErrorCode {
   conflict(409, 'CONFLICT'),
   transactionInProgress(409, 'TRANSACTION_IN_PROGRESS');
 
-  final int statusCode;
+  final dynamic statusCode;
   final String code;
 
   const ApiErrorCode(this.statusCode, this.code);

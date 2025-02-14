@@ -4,6 +4,7 @@ import '../../provider/auth_provider.dart';
 import '../_constant/component/button.dart';
 import '../_constant/theme/devcoop_text_style.dart';
 import '../_constant/theme/devcoop_colors.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PinPage extends StatefulWidget {
   const PinPage({Key? key}) : super(key: key);
@@ -69,17 +70,55 @@ class _PinPageState extends State<PinPage> {
         );
         Navigator.of(context)
             .pushNamedAndRemoveUntil('/payment', (route) => false);
-      } else if (result.redirectUrl != null) {
-        Navigator.of(context).pushReplacementNamed(
-          '/pin/change',
-          arguments: {'redirectUrl': result.redirectUrl},
-        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.message ?? '로그인에 실패했습니다')),
-        );
-        _pinController.clear();
+        if (authProvider.error == 'DEFAULT_PIN_IN_USE') {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text(
+                '초기 비밀번호 변경 안내',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
+              ),
+              content: Container(
+                width: 500,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '보안을 위해 초기 비밀번호를 변경해주세요.\n\n'
+                      '1. 오카운트 홈페이지(occount.bsm-aripay.kr)에 접속\n'
+                      '2. 로그인 후 [햄버거] 버튼 누르고 개인정보변경으로 이동\n'
+                      '3. [핀번호 변경하기] 버튼을 클릭하여 변경\n\n'
+                      '* 키오스크에서는 핀번호를 변경할 수 없습니다.',
+                      style: TextStyle(fontSize: 16, height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () =>
+                      Navigator.of(context).pushReplacementNamed('/'),
+                  child: const Text(
+                    '처음으로',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result.message ?? '로그인에 실패했습니다')),
+          );
+        }
       }
+      _pinController.clear();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,6 +130,16 @@ class _PinPageState extends State<PinPage> {
 
   void _setActiveController(TextEditingController controller) {
     FocusScope.of(context).requestFocus(_pinFocus);
+  }
+
+  Future<void> _launchWebsite() async {
+    final Uri url = Uri.parse('https://occount.bsm-aripay.kr');
+    if (!await launchUrl(url)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('웹사이트를 열 수 없습니다')),
+      );
+    }
   }
 
   @override

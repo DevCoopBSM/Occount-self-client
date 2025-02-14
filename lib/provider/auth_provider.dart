@@ -6,8 +6,6 @@ import '../exception/api_exception.dart';
 import '../models/user_info.dart';
 import '../models/auth_response.dart';
 import '../models/login_result.dart';
-import 'package:provider/provider.dart';
-import '../provider/payment_provider.dart';
 import '../models/cart_item.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -47,23 +45,33 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
 
       final response = await _authService.login(codeNumber, pin);
-
-      if (response.message == '안전하지 않은 비밀번호입니다. 비밀번호를 변경해주세요') {
-        _isLoading = false;
-        notifyListeners();
-        return LoginResult(
-          success: false,
-          message: response.message,
-          redirectUrl: response.redirectUrl,
-        );
-      }
-
       await _saveUserData(response);
       _logger.info('👤 로그인 성공 및 상태 저장 완료: ${_userInfo.userName}');
       return LoginResult(success: true);
     } catch (e) {
-      _error = e is ApiException ? e.message : '네트워크 오류가 발생했습니다';
       _isLoading = false;
+
+      if (e is ApiException) {
+        _logger.info('🔴 로그인 에러 발생: code=${e.code.code}, message=${e.message}');
+
+        if (e.code.code == 'DEFAULT_PIN_IN_USE') {
+          // code.code로 정확한 에러 코드 비교
+          _error = e.code.code; // 원본 에러 코드 저장
+          notifyListeners();
+          _logger.info('🔑 초기 비밀번호 사용 중 - 모달 표시 필요');
+          return LoginResult(
+            success: false,
+            message: e.message,
+            redirectUrl: null,
+          );
+        }
+
+        _error = e.message;
+        notifyListeners();
+        return LoginResult(success: false, message: e.message);
+      }
+
+      _error = '네트워크 오류가 발생했습니다';
       notifyListeners();
       return LoginResult(success: false, message: _error);
     }
