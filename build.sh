@@ -1,1 +1,0 @@
-flutter build apk --release --dart-define=API_KEY=ok_B20pJkiE53gRTFBrz82gX4HeuUhKtl9D2Ru7-mL9Y9I= --dart-define=API_HOST=http://10.129.57.12:8080
