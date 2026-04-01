@@ -83,13 +83,13 @@ class _PinPageState extends State<PinPage> {
                   fontSize: 24,
                 ),
               ),
-              content: Container(
+              content: SizedBox(
                 width: 500,
-                child: Column(
+                child: const Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '보안을 위해 초기 비밀번호를 변경해주세요.\n\n'
                       '1. 오카운트 홈페이지(occount.bsm-aripay.kr)에 접속\n'
                       '2. 로그인 후 [햄버거] 버튼 누르고 개인정보변경으로 이동\n'

@@ -3,7 +3,6 @@ import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../exception/api_exception.dart';
 import '../models/auth_response.dart';
-import '../models/user_info.dart';
 
 class AuthService {
   final ApiClient _apiClient;

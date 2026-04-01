@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../provider/payment_provider.dart';
 import '../../../models/non_barcode_item_response.dart';
-import '../../../models/cart_item.dart';
 import '../../_constant/theme/devcoop_colors.dart';
 import '../../_constant/theme/devcoop_text_style.dart';
 import '../../_constant/util/number_format_util.dart';

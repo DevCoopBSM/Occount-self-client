@@ -36,7 +36,7 @@ class PaymentSummary extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('총 결제금액', style: DevCoopTextStyle.medium_30),
+                  const Text('총 결제금액', style: DevCoopTextStyle.medium_30),
                   Text(
                     '${NumberFormatUtil.convert1000Number(calculation.totalPrice)}원',
                     style: DevCoopTextStyle.bold_30,
@@ -48,7 +48,7 @@ class PaymentSummary extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('포인트 사용', style: DevCoopTextStyle.medium_30),
+                    const Text('포인트 사용', style: DevCoopTextStyle.medium_30),
                     Text(
                       '${NumberFormatUtil.convert1000Number(calculation.expectedPoints)}원',
                       style: DevCoopTextStyle.medium_30,
@@ -60,7 +60,7 @@ class PaymentSummary extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('카드 결제', style: DevCoopTextStyle.medium_30),
+                      const Text('카드 결제', style: DevCoopTextStyle.medium_30),
                       Text(
                         '${NumberFormatUtil.convert1000Number(calculation.expectedCardAmount)}원',
                         style: DevCoopTextStyle.medium_30,
