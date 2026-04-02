@@ -1,8 +1,10 @@
 import 'package:logging/logging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../exception/api_exception.dart';
 import '../models/auth_response.dart';
+import '../models/user_info.dart';
 
 class AuthService {
   final ApiClient _apiClient;
@@ -10,77 +12,86 @@ class AuthService {
 
   AuthService(this._apiClient);
 
-  Future<AuthResponse> login(String userCode, String userPin) async {
+  /// 명세서 로그인 흐름 (3단계):
+  /// 1. POST /auth/kiosk/login → 201 응답 헤더에서 KIOSK_TOKEN 추출
+  /// 2. GET /users/pre-order-info → 사용자 이름 조회
+  /// 3. GET /wallet/point → 현재 포인트 조회
+  ///
+  /// 요청 필드명 변경: userCode → userBarcode
+  Future<AuthResponse> login(String userBarcode, String userPin) async {
     try {
-      _logger.info('🔐 로그인 시도');
-      final response = await _apiClient.post(
+      _logger.info('🔐 로그인 시도 (바코드 기반)');
+
+      // Step 1: 로그인 — 토큰은 응답 body가 아닌 Authorization 헤더에 있음
+      final token = await _apiClient.postForHeader(
         ApiEndpoints.login,
         {
-          'userCode': userCode,
+          // 명세서 변경: 'userCode' → 'userBarcode'
+          'userBarcode': userBarcode,
           'userPin': userPin,
         },
-        (json) => AuthResponse.fromJson(json),
-        requiresAuth: false,
       );
-      _logger.info('✅ 로그인 성공');
+      _logger.info('✅ Step 1 완료: 토큰 추출 성공');
+
+      // Step 2 & 3을 위해 토큰을 미리 SharedPreferences에 저장
+      // (인증이 필요한 /users/pre-order-info, /wallet/point 호출을 위함)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('accessToken', token);
+      _logger.info('💾 토큰 임시 저장 완료');
+
+      // Step 2: 사용자 이름 조회
+      _logger.info('👤 Step 2: 사용자 이름 조회');
+      final username = await _apiClient.get(
+        ApiEndpoints.preOrderInfo,
+        (json) => json['username'] as String,
+        requiresAuth: true,
+      );
+      _logger.info('✅ Step 2 완료: username=$username');
+
+      // Step 3: 현재 포인트 조회
+      _logger.info('💰 Step 3: 포인트 조회');
+      final point = await _apiClient.get(
+        ApiEndpoints.getPoint,
+        (json) => json['point'] as int,
+        requiresAuth: true,
+      );
+      _logger.info('✅ Step 3 완료: point=$point');
+
+      // 3단계 결과를 조합하여 AuthResponse 생성
+      // userCode 자리에 userBarcode 사용 (사용자 식별자로 활용)
+      // userNumber는 새 API에 없으므로 빈 문자열
+      final response = AuthResponse(
+        token: token,
+        userInfo: UserInfo(
+          userCode: userBarcode,
+          userName: username,
+          userNumber: '',
+          userPoint: point,
+        ),
+      );
+
+      _logger.info('✅ 로그인 전체 성공: ${response.userInfo.userName}');
       return response;
     } catch (e) {
       _logger.severe('❌ 로그인 실패: $e');
-      if (e is ApiException) {
-        rethrow; // ApiException을 그대로 전달
-      }
+      if (e is ApiException) rethrow;
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }
 
-  Future<void> changePin(
-      String codeNumber, String currentPin, String newPin) async {
-    try {
-      await _apiClient.put(
-        ApiEndpoints.changePin,
-        {
-          'codeNumber': codeNumber,
-          'pin': currentPin,
-          'newPin': newPin,
-        },
-      );
-    } catch (e) {
-      _logger.severe('비밀번호 변경 실패: $e');
-      throw ApiException.fromErrorCode(ApiErrorCode.changePinFailed);
-    }
-  }
-
-  Future<void> validatePin(String userCode, String pin) async {
-    try {
-      _logger.info('🔐 PIN 번호 검증 시작');
-      await _apiClient.post(
-        ApiEndpoints.validatePin,
-        {
-          'userCode': userCode,
-          'pin': pin,
-        },
-        (json) => json,
-      );
-      _logger.info('✅ PIN 번호 검증 성공');
-    } catch (e) {
-      _logger.severe('❌ PIN 번호 검증 실패: $e');
-      throw ApiException(
-        code: ApiErrorCode.invalidPin,
-        message: 'PIN 번호가 일치하지 않습니다',
-        status: '401',
-      );
-    }
-  }
-
-  Future<int?> getPoint(String userCode) async {
+  /// 현재 로그인된 사용자의 포인트 조회
+  /// 명세서 변경: GET /wallet/point (path param 없음, 토큰 기반)
+  /// 구 API: GET /kiosk/user/point/{userCode}
+  Future<int?> getPoint() async {
     try {
       _logger.info('💰 포인트 조회 시작');
-      final response = await _apiClient.get(
-        '${ApiEndpoints.getPoint}/$userCode',
+      final point = await _apiClient.get(
+        ApiEndpoints.getPoint,
         (json) => json['point'] as int,
+        requiresAuth: true,
       );
-      _logger.info('✅ 포인트 조회 성공: $response');
-      return response;
+      _logger.info('✅ 포인트 조회 성공: $point');
+      return point;
     } catch (e) {
       _logger.severe('❌ 포인트 조회 실패: $e');
       throw ApiException(

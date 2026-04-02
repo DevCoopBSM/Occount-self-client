@@ -112,31 +112,12 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> validatePin(String pin) async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
-
-      if (_userInfo.userCode.isEmpty) {
-        throw Exception('사용자 정보가 없습니다');
-      }
-
-      await _authService.validatePin(_userInfo.userCode, pin);
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
-      rethrow;
-    }
-  }
+  // validatePin() 제거 — 명세서에서 해당 엔드포인트 삭제됨
 
   Future<void> updatePoint() async {
     try {
-      final updatedPoint = await _authService.getPoint(_userInfo.userCode);
+      // 명세서 변경: getPoint()는 path param 없음 (토큰 기반)
+      final updatedPoint = await _authService.getPoint();
       if (updatedPoint != null) {
         _userInfo = UserInfo(
           userCode: _userInfo.userCode,

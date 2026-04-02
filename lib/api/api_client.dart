@@ -41,13 +41,15 @@ class ApiClient {
     String endpoint,
     T Function(dynamic json) fromJson, {
     Map<String, dynamic>? queryParams,
+    // 명세서상 /items/** 는 인증 불필요. 인증이 필요 없는 공개 API는 false 전달
+    bool requiresAuth = true,
   }) async {
     try {
       final uri = Uri.parse('${apiConfig.API_HOST}$endpoint')
           .replace(queryParameters: queryParams);
       _logger.info('🌐 GET 요청: $uri');
 
-      final headers = await _getHeaders();
+      final headers = await _getHeaders(requiresAuth: requiresAuth);
       _logger.fine('📤 Headers: $headers');
 
       final response = await client.get(
@@ -65,16 +67,18 @@ class ApiClient {
 
       _logger.warning('❌ GET 요청 실패: ${response.statusCode}');
 
-      // 에러 응답 파싱 추가
+      // 에러 응답 파싱 — 명세서 에러 형식: { "message": "ERROR_CODE" }
       final errorBody = utf8.decode(response.bodyBytes);
       final errorData = json.decode(errorBody);
 
       throw ApiException(
-        code: _getErrorCodeFromStatus(response.statusCode, errorData['code']),
+        // 명세서: 에러 코드가 json['message']에 담김 (구 API의 json['code']와 다름)
+        code: _getErrorCodeFromStatus(response.statusCode, errorData['message']),
         message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
         status: errorData['status'] ?? 'FAIL',
       );
     } catch (e) {
+      if (e is ApiException) rethrow;
       _logger.severe('❌ GET 요청 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -105,14 +109,15 @@ class ApiClient {
         return parser(data);
       }
 
-      // 에러 응답 처리
+      // 에러 응답 처리 — 명세서 에러 형식: { "message": "ERROR_CODE" }
       String? errorCode;
       String? errorMessage;
 
       if (response.body.isNotEmpty) {
         try {
           final errorJson = jsonDecode(response.body);
-          errorCode = errorJson['code'];
+          // 명세서: 에러 코드가 json['message']에 담김 (구 API의 json['code']와 다름)
+          errorCode = errorJson['message'];
           errorMessage = errorJson['message'];
         } catch (e) {
           _logger.severe('❌ 응답 파싱 에러: $e');
@@ -124,6 +129,64 @@ class ApiClient {
       throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
     } catch (e) {
       if (e is ApiException) rethrow;
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError);
+    }
+  }
+
+  /// 로그인 전용 — 201 응답의 Authorization 헤더에서 토큰 추출
+  /// 명세서: POST /auth/kiosk/login 성공 시 201 Created,
+  ///         응답 body 없음, 토큰은 Authorization 헤더에 담김
+  Future<String> postForHeader(
+    String endpoint,
+    dynamic data,
+  ) async {
+    try {
+      final uri = Uri.parse('${apiConfig.API_HOST}$endpoint');
+      _logger.info('🌐 POST (header auth) 요청: $uri');
+
+      // 로그인은 인증 불필요
+      final headers = await _getHeaders(requiresAuth: false);
+      final response = await client.post(
+        uri,
+        headers: headers,
+        body: jsonEncode(data),
+      );
+
+      _logger.info('📥 응답 상태 코드: ${response.statusCode}');
+      _logger.fine('📥 응답 헤더: ${response.headers}');
+
+      if (response.statusCode == 201) {
+        // 토큰은 Authorization 헤더에 "Bearer <token>" 형태로 담김
+        final authHeader = response.headers['authorization'];
+        if (authHeader == null || !authHeader.startsWith('Bearer ')) {
+          _logger.severe('❌ Authorization 헤더 없음 또는 형식 오류');
+          throw ApiException.fromErrorCode(ApiErrorCode.serverError);
+        }
+        final token = authHeader.substring('Bearer '.length);
+        _logger.info('✅ 로그인 성공 — 토큰 추출 완료');
+        return token;
+      }
+
+      // 에러 응답 처리 — 명세서 에러 형식: { "message": "ERROR_CODE" }
+      String? errorCode;
+      String? errorMessage;
+
+      if (response.body.isNotEmpty) {
+        try {
+          final errorJson = jsonDecode(response.body);
+          errorCode = errorJson['message'];
+          errorMessage = errorJson['message'];
+        } catch (e) {
+          _logger.severe('❌ 응답 파싱 에러: $e');
+        }
+      }
+
+      final apiErrorCode =
+          _getErrorCodeFromStatus(response.statusCode, errorCode);
+      throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      _logger.severe('❌ postForHeader 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }
@@ -162,16 +225,18 @@ class ApiClient {
 
       _logger.warning('❌ PUT 요청 실패: ${response.statusCode}');
 
-      // 에러 응답 파싱 추가
+      // 에러 응답 파싱 — 명세서 에러 형식: { "message": "ERROR_CODE" }
       final errorBody = utf8.decode(response.bodyBytes);
       final errorData = json.decode(errorBody);
 
       throw ApiException(
-        code: _getErrorCodeFromStatus(response.statusCode, errorData['code']),
+        // 명세서: 에러 코드가 json['message']에 담김 (구 API의 json['code']와 다름)
+        code: _getErrorCodeFromStatus(response.statusCode, errorData['message']),
         message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
         status: errorData['status'] ?? 'FAIL',
       );
     } catch (e) {
+      if (e is ApiException) rethrow;
       _logger.severe('❌ PUT 요청 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -181,7 +246,7 @@ class ApiClient {
     _logger.info('🔍 에러 매핑 시작');
     _logger.info('📥 서버 응답: statusCode=$statusCode, errorCode=$errorCode');
 
-    // 특정 에러 코드 먼저 체크
+    // 명세서 에러 코드 직접 매핑 (json['message']로 받은 값)
     if (errorCode == 'DEFAULT_PIN_IN_USE') {
       _logger.info('✅ 초기 비밀번호 에러 감지');
       return ApiErrorCode.defaultPinInUse;
@@ -189,7 +254,8 @@ class ApiClient {
 
     // 401 상태 코드에 대한 특별한 에러 코드 처리
     if (statusCode == 401) {
-      if (errorCode == 'TOKEN_EXPIRED') {
+      if (errorCode == 'EXPIRED_TOKEN') {
+        // 명세서: EXPIRED_TOKEN (구 API는 TOKEN_EXPIRED였음)
         _logger.info('✅ 토큰 만료 에러 감지');
         return ApiErrorCode.tokenExpired;
       } else if (errorCode == 'INVALID_TOKEN') {
@@ -198,7 +264,7 @@ class ApiClient {
       }
     }
 
-    // 기존 매핑 로직 유지
+    // 명세서 에러 코드로 ApiErrorCode 매핑
     if (errorCode != null) {
       _logger.info('📝 서버 에러 코드: "$errorCode"');
       for (var code in ApiErrorCode.values) {
@@ -211,6 +277,8 @@ class ApiClient {
 
     _logger.warning('⚠️ 기본 에러 매핑: statusCode=$statusCode');
     switch (statusCode) {
+      case 400:
+        return ApiErrorCode.paymentFailed;
       case 401:
         return ApiErrorCode.unauthorized;
       case 403:

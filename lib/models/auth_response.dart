@@ -1,38 +1,22 @@
 import 'user_info.dart';
 
+// 명세서 변경: 로그인 응답이 단일 JSON body가 아님.
+// token은 201 응답 헤더에서, username은 /users/pre-order-info에서,
+// point는 /wallet/point에서 각각 조회 후 조합하여 생성.
+// fromJson 제거 — AuthService.login()이 3단계 API 호출 후 직접 생성.
 class AuthResponse {
   final String token;
   final UserInfo userInfo;
-  final String? message;
-  final String? redirectUrl;
 
   AuthResponse({
     required this.token,
     required this.userInfo,
-    this.message,
-    this.redirectUrl,
   });
-
-  factory AuthResponse.fromJson(Map<String, dynamic> json) {
-    return AuthResponse(
-      token: json['token'] as String,
-      userInfo: UserInfo(
-        userCode: json['userCode'] as String,
-        userName: json['userName'] as String,
-        userNumber: json['userNumber'] as String,
-        userPoint: json['userPoint'] as int,
-      ),
-      message: json['message'] as String?,
-      redirectUrl: json['redirectUrl'] as String?,
-    );
-  }
 
   Map<String, dynamic> toJson() {
     return {
       'token': token,
       'userInfo': userInfo.toJson(),
-      'message': message,
-      'redirectUrl': redirectUrl,
     };
   }
 }

@@ -88,9 +88,8 @@ class PaymentProvider extends ChangeNotifier {
     }
   }
 
+  // 명세서 변경: userCode, userName 제거 — 토큰 기반 인증으로 서버가 사용자 식별
   Future<void> processPayment({
-    required String userCode,
-    required String userName,
     required BuildContext context,
   }) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -121,8 +120,9 @@ class PaymentProvider extends ChangeNotifier {
             totalAmount: calculation.totalPrice,
             paymentAmount: calculation.expectedPoints,
             cardAmount: calculation.expectedCardAmount,
-            isChargeOnly: calculation.isChargeOnly,
-            hasCharge: calculation.hasCharge,
+            // 명세서 변경: CHARGE 타입 제거 — 항상 false
+            isChargeOnly: false,
+            hasCharge: false,
             onClose: () {
               cancelPayment(context);
               Navigator.of(context).pop();
@@ -160,10 +160,10 @@ class PaymentProvider extends ChangeNotifier {
 
       // 결제 API 요청
       _logger.info('💰 결제 API 요청 시작');
+      // 명세서 변경: userCode/userName 제거, userPoint로 결제 타입 결정
       final result = await _paymentService.executePayment(
         items: authProvider.cartItems,
-        userCode: userCode,
-        userName: userName,
+        userPoint: authProvider.userInfo.userPoint,
       );
 
       // 모달이 이미 닫혔다면 응답 처리하지 않음
@@ -267,19 +267,17 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   Future<PaymentResponse> executePayment({
-    required String userCode,
-    required String userName,
     required List<CartItem> items,
+    required int userPoint,
   }) async {
     final totalPrice = calculateTotalPrice(items);
     _logger.info('💰 결제 요청 시작');
-    _logger.info('사용자: $userName ($userCode)');
-    _logger.info('총 결제금액: $totalPrice원');
+    _logger.info('총 결제금액: $totalPrice원, 보유포인트: $userPoint원');
 
+    // 명세서 변경: userCode/userName 제거, userPoint로 결제 타입 결정
     return await _paymentService.executePayment(
       items: items,
-      userCode: userCode,
-      userName: userName,
+      userPoint: userPoint,
     );
   }
 
@@ -388,12 +386,7 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   Future<void> retryPayment(BuildContext context) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    await processPayment(
-      userCode: authProvider.userInfo.userCode,
-      userName: authProvider.userInfo.userName,
-      context: context,
-    );
+    await processPayment(context: context);
   }
 }
 

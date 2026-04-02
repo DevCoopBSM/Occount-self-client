@@ -1,9 +1,12 @@
 import '../models/cart_item.dart';
 
+// 명세서 변경:
+// - CHARGE 타입 제거 (PAYMENT, MIXED만 유지)
+// - userInfo 필드 제거 (토큰 기반 인증으로 서버가 사용자 식별)
+// - charge 필드 제거 (포인트 충전 기능 분리됨)
 enum PaymentType {
-  PAYMENT,
-  CHARGE,
-  MIXED;
+  PAYMENT, // 포인트 단독 결제
+  MIXED;   // 포인트 + 카드 혼합 결제
 
   @override
   String toString() => name;
@@ -11,55 +14,20 @@ enum PaymentType {
 
 class PaymentRequest {
   final PaymentType type;
-  final UserInfo userInfo;
-  final PaymentInfo? payment;
-  final ChargeInfo? charge;
+  final PaymentInfo payment;
 
   PaymentRequest({
     required this.type,
-    required this.userInfo,
-    this.payment,
-    this.charge,
+    required this.payment,
   });
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> json = {
+    // 명세서 요청 구조: type + payment만 포함 (userInfo, charge 제거)
+    return {
       'type': type.toString(),
-      'userInfo': userInfo.toJson(),
+      'payment': payment.toJson(),
     };
-
-    if (payment != null) {
-      json['payment'] = payment!.toJson();
-    }
-
-    if (charge != null) {
-      json['charge'] = charge!.toJson();
-    }
-
-    return json;
   }
-
-  PaymentRequest copyWith({
-    PaymentType? type,
-    UserInfo? userInfo,
-    PaymentInfo? payment,
-    ChargeInfo? charge,
-  }) {
-    return PaymentRequest(
-      type: type ?? this.type,
-      userInfo: userInfo ?? this.userInfo,
-      payment: payment ?? this.payment,
-      charge: charge ?? this.charge,
-    );
-  }
-}
-
-class UserInfo {
-  final String id;
-
-  UserInfo({required this.id});
-
-  Map<String, dynamic> toJson() => {'id': id};
 }
 
 class PaymentInfo {
@@ -78,7 +46,8 @@ class PaymentInfo {
 }
 
 class PaymentItem {
-  final int itemId;
+  // 명세서 변경: itemId가 String 타입 (다른 API의 Long/int와 다름)
+  final String itemId;
   final String itemName;
   final int itemPrice;
   final int quantity;
@@ -93,6 +62,7 @@ class PaymentItem {
   });
 
   Map<String, dynamic> toJson() => {
+        // 명세서: itemId는 반드시 String으로 직렬화
         'itemId': itemId,
         'itemName': itemName,
         'itemPrice': itemPrice,
@@ -102,26 +72,12 @@ class PaymentItem {
 
   factory PaymentItem.fromCartItem(CartItem item) {
     return PaymentItem(
-      itemId: item.itemId,
+      // 명세서: itemId를 String으로 변환 (CartItem.itemId는 int)
+      itemId: item.itemId.toString(),
       itemName: item.itemName,
       itemPrice: item.itemPrice,
       quantity: item.quantity,
       totalPrice: item.totalPrice,
     );
   }
-}
-
-class ChargeInfo {
-  final int amount;
-  final String method;
-
-  ChargeInfo({
-    required this.amount,
-    this.method = 'CARD',
-  });
-
-  Map<String, dynamic> toJson() => {
-        'amount': amount,
-        'method': method,
-      };
 }

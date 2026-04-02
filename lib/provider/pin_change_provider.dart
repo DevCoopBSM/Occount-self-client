@@ -23,7 +23,13 @@ class PinChangeProvider with ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      await _authService.changePin(userCode, currentPin, newPin);
+      // 명세서에서 changePin 엔드포인트 제거됨 — 기능 비활성화
+      // 추후 해당 기능이 필요하면 서버 팀에 새 엔드포인트 추가 요청 필요
+      throw ApiException(
+        code: ApiErrorCode.changePinFailed,
+        message: '핀번호 변경 기능은 현재 지원하지 않습니다',
+        status: '501',
+      );
 
       _isLoading = false;
       notifyListeners();

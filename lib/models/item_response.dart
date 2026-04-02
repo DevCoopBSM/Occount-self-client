@@ -18,11 +18,17 @@ class ItemResponse {
   factory ItemResponse.fromJson(Map<String, dynamic> json) {
     return ItemResponse(
       itemId: json['itemId'] as int,
-      itemCode: json['itemCode'] as String? ?? '',
-      itemName: json['itemName'] as String,
-      itemPrice: json['itemPrice'] as int,
-      eventStatus: json['eventStatus'] as String?,
-      itemCategory: json['itemCategory'] as String,
+      // 명세서 변경: 'itemCode' → 'barcode'
+      itemCode: json['barcode'] as String? ?? '',
+      // 명세서 변경: 'itemName' → 'name'
+      itemName: json['name'] as String,
+      // 명세서 변경: 'itemPrice' → 'price'
+      itemPrice: json['price'] as int,
+      // 명세서에서 eventStatus 제거됨
+      eventStatus: null,
+      // 명세서 변경: 'itemCategory' → 'category'
+      // /items/{barcode} 응답에는 category 없으므로 빈 문자열로 기본값 처리
+      itemCategory: json['category'] as String? ?? '',
     );
   }
 
