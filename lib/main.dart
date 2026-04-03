@@ -14,7 +14,6 @@ import 'services/payment_calculation_service.dart';
 import 'services/auth_service.dart';
 import 'api/api_client.dart';
 import 'services/item_service.dart';
-import 'services/event_service.dart';
 import 'ui/home/home.dart';
 import 'ui/login/barcode_scan_page.dart';
 import 'ui/login/pin_page.dart';

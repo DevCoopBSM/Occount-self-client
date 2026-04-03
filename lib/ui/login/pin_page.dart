@@ -83,9 +83,9 @@ class _PinPageState extends State<PinPage> {
                   fontSize: 24,
                 ),
               ),
-              content: SizedBox(
+              content: const SizedBox(
                 width: 500,
-                child: const Column(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
