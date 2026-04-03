@@ -53,7 +53,6 @@ Future<void> main() async {
     Provider<PaymentService>(create: (_) => PaymentService(apiClient)),
     Provider<CategoryService>(
         create: (_) => CategoryService(apiClient: apiClient)),
-    Provider<EventService>(create: (_) => EventService(apiClient)),
     Provider<ChargeService>(create: (_) => ChargeService()),
     Provider<PaymentCalculationService>(
         create: (_) => PaymentCalculationService()),
