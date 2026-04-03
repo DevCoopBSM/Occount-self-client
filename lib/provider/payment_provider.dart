@@ -72,12 +72,10 @@ class PaymentProvider extends ChangeNotifier {
         // 이미 있는 상품이면 수량만 증가
         authProvider
             .increaseQuantity(authProvider.cartItems[existingItemIndex].itemId);
-        _logger.info('🔄 기존 상품 수량 증가: ${item.itemName}');
       } else {
         // 새로운 상품이면 장바구니에 추가
         final cartItem = CartItem.fromItemResponse(item);
         authProvider.addToCart(cartItem);
-        _logger.info('➕ 새 상품 추가: ${item.itemName}');
       }
     } catch (e) {
       _error = '상품 추가에 실패했습니다';
@@ -96,7 +94,6 @@ class PaymentProvider extends ChangeNotifier {
 
     // 상품이 없는 경우 먼저 체크
     if (authProvider.cartItems.isEmpty) {
-      _logger.info('⚠️ 상품이 없는 상태에서 결제 시도');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('상품을 추가해주세요')),
@@ -135,7 +132,6 @@ class PaymentProvider extends ChangeNotifier {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.cartItems.isEmpty) {
-        _logger.info('⚠️ 상품이 없는 상태에서 결제 시도');
         if (context.mounted) {
           showDialog(
             context: context,
@@ -159,7 +155,6 @@ class PaymentProvider extends ChangeNotifier {
       }
 
       // 결제 API 요청
-      _logger.info('💰 결제 API 요청 시작');
       // 명세서 변경: userCode/userName 제거, userPoint로 결제 타입 결정
       final result = await _paymentService.executePayment(
         items: authProvider.cartItems,
@@ -168,7 +163,6 @@ class PaymentProvider extends ChangeNotifier {
 
       // 모달이 이미 닫혔다면 응답 처리하지 않음
       if (!_isProcessingDialogVisible) {
-        _logger.info('💡 결제 진행 중 모달이 닫혀 응답을 무시합니다');
         return;
       }
 
@@ -204,7 +198,6 @@ class PaymentProvider extends ChangeNotifier {
 
       // 모달이 이미 닫혔다면 에러 처리하지 않음
       if (!_isProcessingDialogVisible) {
-        _logger.info('💡 결제 진행 중 모달이 닫혀 에러를 무시합니다');
         return;
       }
 
@@ -271,8 +264,6 @@ class PaymentProvider extends ChangeNotifier {
     required int userPoint,
   }) async {
     final totalPrice = calculateTotalPrice(items);
-    _logger.info('💰 결제 요청 시작');
-    _logger.info('총 결제금액: $totalPrice원, 보유포인트: $userPoint원');
 
     // 명세서 변경: userCode/userName 제거, userPoint로 결제 타입 결정
     return await _paymentService.executePayment(
@@ -348,7 +339,6 @@ class PaymentProvider extends ChangeNotifier {
 
   Future<void> cancelPayment(BuildContext context) async {
     try {
-      _logger.info('💡 결제가 취소되었습니다');
       _isProcessingDialogVisible = false;
 
       if (context.mounted) {
@@ -369,7 +359,6 @@ class PaymentProvider extends ChangeNotifier {
     if (existingItemIndex != -1) {
       // 이미 있는 아이템이면 수량만 증가
       authProvider.increaseQuantity(item.itemId);
-      _logger.info('🔄 기존 상품 수량 증가: ${item.itemName}');
     } else {
       // 새 아이템이면 장바구니에 추가
       final cartItem = CartItem(
@@ -381,7 +370,6 @@ class PaymentProvider extends ChangeNotifier {
         itemCategory: item.itemCategory,
       );
       authProvider.addToCart(cartItem);
-      _logger.info('➕ 새 상품 추가: ${item.itemName}');
     }
   }
 

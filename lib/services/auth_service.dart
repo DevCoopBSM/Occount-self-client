@@ -20,8 +20,6 @@ class AuthService {
   /// 요청 필드명 변경: userCode → userBarcode
   Future<AuthResponse> login(String userBarcode, String userPin) async {
     try {
-      _logger.info('🔐 로그인 시도 (바코드 기반)');
-
       // Step 1: 로그인 — 토큰은 응답 body가 아닌 Authorization 헤더에 있음
       final token = await _apiClient.postForHeader(
         ApiEndpoints.login,
@@ -31,31 +29,23 @@ class AuthService {
           'userPin': userPin,
         },
       );
-      _logger.info('✅ Step 1 완료: 토큰 추출 성공');
-
       // Step 2 & 3을 위해 토큰을 미리 SharedPreferences에 저장
       // (인증이 필요한 /users/pre-order-info, /wallet/point 호출을 위함)
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('accessToken', token);
-      _logger.info('💾 토큰 임시 저장 완료');
 
       // Step 2: 사용자 이름 조회
-      _logger.info('👤 Step 2: 사용자 이름 조회');
       final username = await _apiClient.get(
         ApiEndpoints.preOrderInfo,
         (json) => json['username'] as String,
         requiresAuth: true,
       );
-      _logger.info('✅ Step 2 완료: username=$username');
-
       // Step 3: 현재 포인트 조회
-      _logger.info('💰 Step 3: 포인트 조회');
       final point = await _apiClient.get(
         ApiEndpoints.getPoint,
         (json) => json['point'] as int,
         requiresAuth: true,
       );
-      _logger.info('✅ Step 3 완료: point=$point');
 
       // 3단계 결과를 조합하여 AuthResponse 생성
       // userCode 자리에 userBarcode 사용 (사용자 식별자로 활용)
@@ -90,7 +80,6 @@ class AuthService {
         (json) => json['point'] as int,
         requiresAuth: true,
       );
-      _logger.info('✅ 포인트 조회 성공: $point');
       return point;
     } catch (e) {
       _logger.severe('❌ 포인트 조회 실패: $e');

@@ -46,19 +46,16 @@ class AuthProvider with ChangeNotifier {
 
       final response = await _authService.login(codeNumber, pin);
       await _saveUserData(response);
-      _logger.info('👤 로그인 성공 및 상태 저장 완료: ${_userInfo.userName}');
       return LoginResult(success: true);
     } catch (e) {
       _isLoading = false;
 
       if (e is ApiException) {
-        _logger.info('🔴 로그인 에러 발생: code=${e.code.code}, message=${e.message}');
 
         if (e.code.code == 'DEFAULT_PIN_IN_USE') {
           // code.code로 정확한 에러 코드 비교
           _error = e.code.code; // 원본 에러 코드 저장
           notifyListeners();
-          _logger.info('🔑 초기 비밀번호 사용 중 - 모달 표시 필요');
           return LoginResult(
             success: false,
             message: e.message,
@@ -88,7 +85,6 @@ class AuthProvider with ChangeNotifier {
     _userInfo = response.userInfo;
     _isLoggedIn = true;
     _isLoading = false;
-    _logger.info('👤 로그인 성공: ${_userInfo.userName}');
     notifyListeners();
   }
 
@@ -155,14 +151,12 @@ class AuthProvider with ChangeNotifier {
   }
 
   void resetState() {
-    _logger.info('👤 사용자 상태 초기화 시작');
     _isLoading = false;
     _error = null;
     _isLoggedIn = false;
     _userInfo = _emptyUserInfo;
     _cartItems.clear();
     notifyListeners();
-    _logger.info('👤 사용자 상태 및 장바구니 초기화 완료');
   }
 
   void increaseQuantity(int itemId) {

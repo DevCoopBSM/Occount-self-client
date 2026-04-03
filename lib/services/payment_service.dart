@@ -8,7 +8,6 @@ import '../exception/api_exception.dart';
 import '../models/payment_request.dart';
 import '../models/order_request.dart';
 import '../models/cart_item.dart';
-import 'dart:convert';
 
 class PaymentService {
   final ApiClient _apiClient;
@@ -19,22 +18,11 @@ class PaymentService {
 
   Future<ItemResponse> getItemByCode(String itemCode) async {
     try {
-      _logger.info('📤 상품 조회 요청 - 바코드: $itemCode');
-
       // 명세서 변경: path param 방식, /items/{barcode}
       final response = await _apiClient.get(
         '${ApiEndpoints.getItems}/$itemCode',
         (json) {
-          _logger.info('📥 API 응답 원본: $json');
           final item = ItemResponse.fromJson(json as Map<String, dynamic>);
-          _logger.info('''
-📦 조회된 상품 정보:
-- 상품ID: ${item.itemId}
-- 바코드: ${item.itemCode}
-- 상품명: ${item.itemName}
-- 가격: ${item.itemPrice}원
-- 카테고리: ${item.itemCategory}
-''');
           return item;
         },
         // 명세서: /items/** 인증 불필요
@@ -105,7 +93,6 @@ class PaymentService {
       _logger.info('💫 결제 타입: $paymentType (총액: $totalAmount, 보유포인트: $userPoint)');
 
       // Step 1: 주문 생성 (명세서 신규 — 결제 전 필수)
-      _logger.info('📋 Step 1: 주문 생성 시작');
       final orderRequest = OrderRequest(
         orderInfos: items
             .map((item) => OrderItem(
@@ -122,10 +109,7 @@ class PaymentService {
         (json) => json,
         requiresAuth: true,
       );
-      _logger.info('✅ Step 1 완료: 주문 생성 성공');
-
       // Step 2: 결제 실행
-      _logger.info('💳 Step 2: 결제 실행 시작');
 
       final paymentItems =
           items.map((item) => PaymentItem.fromCartItem(item)).toList();
@@ -139,7 +123,6 @@ class PaymentService {
         ),
       );
 
-      _logger.info('📡 결제 요청 데이터: ${jsonEncode(request.toJson())}');
 
       return await _apiClient.post(
         ApiEndpoints.executePayment,

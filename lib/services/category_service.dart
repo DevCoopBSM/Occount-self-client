@@ -62,7 +62,6 @@ class CategoryService {
       );
 
       _cachedCategories = categories;
-      _logger.info('📑 카테고리 목록 조회 성공: $categories');
       return categories;
     } catch (e) {
       _logger.warning('❌ 카테고리 목록 조회 실패: $e');

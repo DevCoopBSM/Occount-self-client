@@ -43,7 +43,6 @@ Future<void> main() async {
   final client = http.Client();
   final apiClient = ApiClient(client: client, apiConfig: apiConfig);
 
-  debugPrint('🚀 Initializing providers...');
 
   final serviceProviders = [
     Provider<ApiClient>(create: (_) => apiClient),
@@ -60,7 +59,6 @@ Future<void> main() async {
     ),
   ];
 
-  debugPrint('✅ All providers initialized');
 
   final stateProviders = [
     ChangeNotifierProvider<AuthProvider>(

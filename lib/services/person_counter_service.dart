@@ -77,7 +77,6 @@ class PersonCounterService {
       zeroCount = 0;
 
       if (nonZeroCount >= stableCountThreshold && !hasEntered) {
-        _logger.info('👤 사람이 감지되었습니다 - 환영 메시지 재생');
         _playWelcomeMessage();
         hasEntered = true;
       }
@@ -86,7 +85,6 @@ class PersonCounterService {
       nonZeroCount = 0;
 
       if (zeroCount >= exitCountThreshold && hasEntered) {
-        _logger.info('👻 사람이 떠났습니다 - 작별 메시지 재생');
         _playGoodbyeMessage();
         hasEntered = false;
       }
@@ -98,7 +96,6 @@ class PersonCounterService {
       _isPlaying = true;
       try {
         await SoundUtils.playSound(SoundType.welcome);
-        _logger.info('✅ 환영 메시지 재생 완료');
       } catch (e) {
         _logger.severe('❌ 환영 메시지 재생 오류: $e');
       } finally {
@@ -112,7 +109,6 @@ class PersonCounterService {
       _isPlaying = true;
       try {
         await SoundUtils.playSound(SoundType.goodbye);
-        _logger.info('✅ 작별 메시지 재생 완료');
       } catch (e) {
         _logger.severe('❌ 작별 메시지 재생 오류: $e');
       } finally {

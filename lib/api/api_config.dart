@@ -2,7 +2,6 @@ import 'package:logging/logging.dart';
 
 class ApiConfig {
   final String apiHost;
-  final Logger _logger = Logger('ApiConfig');
 
   ApiConfig()
       // API_HOST는 --dart-define=API_HOST=http://... 로 주입해야 함

@@ -13,7 +13,6 @@ class ChargeService {
       throw ArgumentError('충전 금액은 0보다 커야 합니다.');
     }
 
-    _logger.info('💰 충전 아이템 생성: $amount원');
 
     return CartItem(
       itemId: -1,

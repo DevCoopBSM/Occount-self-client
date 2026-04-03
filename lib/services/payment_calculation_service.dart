@@ -1,10 +1,8 @@
-import 'package:logging/logging.dart';
 import '../models/cart_item.dart';
 import '../models/payment_response.dart';
 import '../ui/_constant/util/number_format_util.dart';
 
 class PaymentCalculationService {
-  final Logger _logger = Logger('PaymentCalculationService');
 
   int calculateTotalAmount(List<CartItem> items) {
     return items.fold<int>(0, (sum, item) => sum + item.totalPrice);
