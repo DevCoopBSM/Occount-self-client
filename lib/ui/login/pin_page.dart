@@ -135,8 +135,7 @@ class _PinPageState extends State<PinPage> {
   }
 
   Future<void> _launchWebsite() async {
-    String webUrl = _apiConfig.API_HOST.replaceAll('/api/v3', '');
-    final Uri url = Uri.parse(webUrl);
+    final Uri url = Uri.parse(_apiConfig.webUrl);
     if (!await launchUrl(url)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

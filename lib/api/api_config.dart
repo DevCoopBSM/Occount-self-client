@@ -17,4 +17,12 @@ class ApiConfig {
   }
 
   String get API_HOST => apiHost;
+
+  String get baseUrl {
+    return apiHost.replaceAll('/api/v3', '');
+  }
+
+  String get webUrl {
+    return baseUrl;
+  }
 }

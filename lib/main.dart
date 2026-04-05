@@ -21,7 +21,6 @@ import 'services/category_service.dart';
 import 'provider/category_provider.dart';
 import 'services/charge_service.dart';
 import 'ui/payments/payment_page.dart';
-import 'services/person_counter_service.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -54,9 +53,6 @@ Future<void> main() async {
     Provider<ChargeService>(create: (_) => ChargeService()),
     Provider<PaymentCalculationService>(
         create: (_) => PaymentCalculationService()),
-    Provider<PersonCounterService>.value(
-      value: PersonCounterService(),
-    ),
   ];
 
 
