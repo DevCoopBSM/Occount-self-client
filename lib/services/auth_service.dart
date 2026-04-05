@@ -12,10 +12,9 @@ class AuthService {
 
   AuthService(this._apiClient);
 
-  /// 명세서 로그인 흐름 (3단계):
+  /// 명세서 로그인 흐름 (2단계):
   /// 1. POST /auth/kiosk/login → 201 응답 헤더에서 KIOSK_TOKEN 추출
-  /// 2. GET /users/pre-order-info → 사용자 이름 조회
-  /// 3. GET /wallet/point → 현재 포인트 조회
+  /// 2. GET /users/pre-order-info → 사용자 이름과 포인트 조회
   ///
   /// 요청 필드명 변경: userCode → userBarcode
   Future<AuthResponse> login(String userBarcode, String userPin) async {
@@ -29,25 +28,29 @@ class AuthService {
           'userPin': userPin,
         },
       );
-      // Step 2 & 3을 위해 토큰을 미리 SharedPreferences에 저장
-      // (인증이 필요한 /users/pre-order-info, /wallet/point 호출을 위함)
+      // Step 2를 위해 토큰을 미리 SharedPreferences에 저장
+      // (인증이 필요한 /users/pre-order-info 호출을 위함)
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('accessToken', token);
 
-      // Step 2: 사용자 이름 조회
-      final username = await _apiClient.get(
+      _logger.info('🔑 토큰 저장 완료, Step 2 시작');
+
+      // Step 2: 사용자 이름과 포인트 조회 (단일 API로 통합됨)
+      final userInfo = await _apiClient.get(
         ApiEndpoints.preOrderInfo,
-        (json) => json['username'] as String,
-        requiresAuth: true,
-      );
-      // Step 3: 현재 포인트 조회
-      final point = await _apiClient.get(
-        ApiEndpoints.getPoint,
-        (json) => json['point'] as int,
+        (json) => {
+          'username': json['username'] as String,
+          'point': json['point'] as int,
+        },
         requiresAuth: true,
       );
 
-      // 3단계 결과를 조합하여 AuthResponse 생성
+      final username = userInfo['username'] as String;
+      final point = userInfo['point'] as int;
+
+      _logger.info('✅ Step 2 완료: $username, $point points');
+
+      // 2단계 결과를 조합하여 AuthResponse 생성
       // userCode 자리에 userBarcode 사용 (사용자 식별자로 활용)
       // userNumber는 새 API에 없으므로 빈 문자열
       final response = AuthResponse(
@@ -60,7 +63,7 @@ class AuthService {
         ),
       );
 
-      _logger.info('✅ 로그인 전체 성공: ${response.userInfo.userName}');
+      _logger.info('✅ 로그인 전체 성공: ${response.userInfo.userName} (포인트: ${response.userInfo.userPoint})');
       return response;
     } catch (e) {
       _logger.severe('❌ 로그인 실패: $e');
@@ -70,17 +73,17 @@ class AuthService {
   }
 
   /// 현재 로그인된 사용자의 포인트 조회
-  /// 명세서 변경: GET /wallet/point (path param 없음, 토큰 기반)
-  /// 구 API: GET /kiosk/user/point/{userCode}
+  /// 명세서 변경: GET /users/pre-order-info에서 포인트도 함께 반환
+  /// 별도의 /wallet/point API는 제거됨
   Future<int?> getPoint() async {
     try {
       _logger.info('💰 포인트 조회 시작');
-      final point = await _apiClient.get(
-        ApiEndpoints.getPoint,
+      final userInfo = await _apiClient.get(
+        ApiEndpoints.preOrderInfo,
         (json) => json['point'] as int,
         requiresAuth: true,
       );
-      return point;
+      return userInfo;
     } catch (e) {
       _logger.severe('❌ 포인트 조회 실패: $e');
       throw ApiException(
