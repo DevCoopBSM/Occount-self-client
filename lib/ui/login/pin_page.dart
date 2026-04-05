@@ -5,6 +5,7 @@ import '../_constant/component/button.dart';
 import '../_constant/theme/devcoop_text_style.dart';
 import '../_constant/theme/devcoop_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../api/api_config.dart';
 
 class PinPage extends StatefulWidget {
   const PinPage({Key? key}) : super(key: key);
@@ -17,6 +18,7 @@ class _PinPageState extends State<PinPage> {
   String? _userCode;
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocus = FocusNode();
+  final ApiConfig _apiConfig = ApiConfig();
 
   void onNumberButtonPressed(int number, TextEditingController controller) {
     if (controller.text.length < 6) {
@@ -91,7 +93,7 @@ class _PinPageState extends State<PinPage> {
                   children: [
                     Text(
                       '보안을 위해 초기 비밀번호를 변경해주세요.\n\n'
-                      '1. 오카운트 홈페이지(occount.bsm-aripay.kr)에 접속\n'
+                      '1. 관리자에게 문의하여 웹사이트에 접속\n'
                       '2. 로그인 후 [햄버거] 버튼 누르고 개인정보변경으로 이동\n'
                       '3. [핀번호 변경하기] 버튼을 클릭하여 변경\n\n'
                       '* 키오스크에서는 핀번호를 변경할 수 없습니다.',
@@ -133,7 +135,8 @@ class _PinPageState extends State<PinPage> {
   }
 
   Future<void> _launchWebsite() async {
-    final Uri url = Uri.parse('https://occount.bsm-aripay.kr');
+    String webUrl = _apiConfig.API_HOST.replaceAll('/api/v3', '');
+    final Uri url = Uri.parse(webUrl);
     if (!await launchUrl(url)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

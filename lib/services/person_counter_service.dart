@@ -4,6 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:logging/logging.dart';
 import 'package:occount_self/utils/sound_utils.dart';
+import 'package:occount_self/api/api_config.dart';
 
 class PersonCounterService {
   WebSocketChannel? _channel;
@@ -16,6 +17,7 @@ class PersonCounterService {
   Timer? _reconnectionTimer;
   bool _isConnecting = false;
   bool _isConnected = false;
+  final ApiConfig _apiConfig = ApiConfig();
 
   final Logger _logger = Logger('PersonCounterService');
 
@@ -32,8 +34,14 @@ class PersonCounterService {
     _isConnecting = true;
 
     try {
+      String wsUrl = _apiConfig.API_HOST.replaceAll('http://', 'ws://').replaceAll('https://', 'wss://');
+      if (wsUrl.endsWith('/api/v3')) {
+        wsUrl = wsUrl.replaceAll('/api/v3', '');
+      }
+      wsUrl = '$wsUrl/ws/person_count';
+
       _channel = WebSocketChannel.connect(
-        Uri.parse('wss://occount.bsm-aripay.kr/ws/person_count'),
+        Uri.parse(wsUrl),
       );
 
       _channel!.stream.listen(
