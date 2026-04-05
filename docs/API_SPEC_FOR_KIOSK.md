@@ -24,8 +24,6 @@
   - [POST /orders](#post-orders)
 - [결제 (Payments)](#결제-payments)
   - [POST /payments/execute](#post-paymentsexecute)
-- [지갑 (Wallet)](#지갑-wallet)
-  - [GET /wallet/point](#get-walletpoint)
 - [에러 응답](#에러-응답)
 - [키오스크 사용 흐름](#키오스크-사용-흐름)
 
@@ -49,7 +47,7 @@
 | 접근 레벨 | 인증 필요 | 해당 API |
 |-----------|-----------|----------|
 | `PERMIT_ALL` | 불필요 | `POST /auth/kiosk/login`, `GET /items/**` |
-| `AUTHENTICATED` | `KIOSK_TOKEN` 필요 | `GET /users/pre-order-info`, `POST /orders`, `POST /payments/execute`, `GET /wallet/point` |
+| `AUTHENTICATED` | `KIOSK_TOKEN` 필요 | `GET /users/pre-order-info`, `POST /orders`, `POST /payments/execute` |
 
 > **주의:** 키오스크 토큰(`KIOSK_TOKEN`)으로는 관리자 전용(`ADMIN_ONLY`) API에 접근할 수 없습니다.
 
@@ -60,14 +58,13 @@
 | # | Method | Endpoint | 인증 | 설명 |
 |---|--------|----------|------|------|
 | 1 | `POST` | `/auth/kiosk/login` | 불필요 | 바코드 + PIN으로 로그인 |
-| 2 | `GET` | `/users/pre-order-info` | KIOSK_TOKEN | 주문 전 사용자 이름 조회 |
+| 2 | `GET` | `/users/pre-order-info` | KIOSK_TOKEN | 주문 전 사용자 이름과 포인트 조회 |
 | 3 | `GET` | `/items` | 불필요 | 전체 상품 목록 조회 |
 | 4 | `GET` | `/items/categories` | 불필요 | 상품 카테고리 목록 조회 |
 | 5 | `GET` | `/items/without-barcode` | 불필요 | 바코드 없는 상품 목록 조회 |
 | 6 | `GET` | `/items/{barcode}` | 불필요 | 바코드로 상품 단건 조회 |
 | 7 | `POST` | `/orders` | KIOSK_TOKEN | 주문 생성 |
 | 8 | `POST` | `/payments/execute` | KIOSK_TOKEN | 결제 실행 |
-| 9 | `GET` | `/wallet/point` | KIOSK_TOKEN | 현재 포인트(잔액) 조회 |
 
 ---
 
@@ -130,13 +127,14 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3IiwicGF5...
 
 ### GET /users/pre-order-info
 
-**설명:** 로그인한 사용자의 이름을 조회합니다. 키오스크 화면에서 "홍길동님, 안녕하세요" 와 같이 사용자를 맞이할 때 사용합니다.
+**설명:** 로그인한 사용자의 이름과 포인트를 조회합니다. 키오스크 화면에서 "홍길동님, 안녕하세요" 와 같이 사용자를 맞이하고, 현재 포인트를 표시할 때 사용합니다.
 
 **인증:** `AUTHENTICATED` — `Authorization: Bearer <KIOSK_TOKEN>` 헤더 필수
 
 **비고:**
 - 요청 파라미터 없이 JWT 내 사용자 ID를 기반으로 자동 조회됩니다.
 - 로그인 직후 화면 초기화 시 호출을 권장합니다.
+- 반환된 포인트 정보를 활용하여 결제 방식(포인트 단독 vs 혼합)을 미리 결정할 수 있습니다.
 
 #### Request
 
@@ -156,7 +154,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 ```json
 // 200 OK
 {
-  "username": "홍길동"
+  "username": "구현우",
+  "point": 0
 }
 ```
 
@@ -437,7 +436,7 @@ GET /items/8801234567890
 **인증:** `AUTHENTICATED` — `Authorization: Bearer <KIOSK_TOKEN>` 헤더 필수
 
 **비고:**
-- 결제 전 `GET /wallet/point`로 현재 포인트를 확인하여 결제 방식(포인트 단독 vs 혼합)을 결정하세요.
+- 결제 전 `GET /users/pre-order-info`의 `point` 필드로 현재 포인트를 확인하여 결제 방식(포인트 단독 vs 혼합)을 결정하세요.
 - `type: "PAYMENT"` — 포인트만으로 전액 결제. 잔액이 부족하면 `400` 반환.
 - `type: "MIXED"` — 포인트를 먼저 사용하고 부족한 금액은 카드로 결제.
 - `payment.items[].itemId`는 **String 타입**임에 유의하세요 (주문 요청의 `Long`과 다름).
@@ -572,49 +571,6 @@ GET /items/8801234567890
 
 ---
 
-## 지갑 (Wallet)
-
-### GET /wallet/point
-
-**설명:** 현재 로그인한 사용자의 포인트(잔액)를 조회합니다. 결제 방식 선택 화면에서 보유 포인트를 표시할 때 사용합니다.
-
-**인증:** `AUTHENTICATED` — `Authorization: Bearer <KIOSK_TOKEN>` 헤더 필수
-
-**비고:**
-- 결제 실행(`POST /payments/execute`) 전에 이 API를 호출하여 포인트가 충분한지 확인하세요.
-- 포인트가 `totalAmount`보다 작으면 `MIXED` 결제를 안내하거나, 포인트 충전을 유도하세요.
-
-#### Request
-
-```
-GET /wallet/point
-Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
-```
-
-#### Response
-
-| 상태 코드 | 설명 |
-|-----------|------|
-| `200 OK` | 조회 성공 |
-| `401 Unauthorized` | 토큰 없음, 유효하지 않음, 또는 만료됨 |
-| `404 Not Found` | 지갑 정보 없음 |
-
-```json
-// 200 OK
-{
-  "point": 6000
-}
-```
-
-```json
-// 404 Not Found
-{
-  "message": "WALLET_NOT_FOUND"
-}
-```
-
----
-
 ## 에러 응답
 
 모든 에러 응답은 아래 단일 형식을 따릅니다.
@@ -635,7 +591,6 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 | `403 Forbidden` | `ACCESS_DENIED` | 권한 없음 (관리자 API 접근 시도 등) | 접근 불가 안내 |
 | `404 Not Found` | `USER_NOT_FOUND` | 바코드에 해당하는 사용자 없음 | "등록되지 않은 사용자입니다" 안내 |
 | `404 Not Found` | `ITEM_NOT_FOUND` | 바코드 스캔 시 상품 없음 | "등록되지 않은 상품입니다" 안내 |
-| `404 Not Found` | `WALLET_NOT_FOUND` | 지갑 정보 없음 | 관리자에게 문의 안내 |
 | `400 Bad Request` | `INSUFFICIENT_POINTS` | 포인트 잔액 부족 | 포인트 충전 또는 혼합 결제 유도 |
 | `408 Request Timeout` | — | 결제 타임아웃 | "결제 처리 중 시간이 초과되었습니다" 안내 후 재시도 |
 | `409 Conflict` | — | 결제 트랜잭션 중복 | "이미 처리 중인 결제가 있습니다" 안내 후 대기 |
@@ -653,7 +608,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
    → KIOSK_TOKEN 저장
        │
        ▼
-3. GET /users/pre-order-info       ← 사용자 이름 표시
+3. GET /users/pre-order-info       ← 사용자 이름과 포인트 표시
    GET /items (또는 /items/categories)  ← 상품 목록 화면 구성
        │
        ├── 바코드 스캔 시 → GET /items/{barcode}
@@ -663,7 +618,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 4. POST /orders                    ← 장바구니 확정 → 주문 생성
        │
        ▼
-5. GET /wallet/point               ← 보유 포인트 확인
+5. 보유 포인트 확인                 ← pre-order-info에서 가져온 포인트 사용
        │
        ├── 포인트 ≥ 총액  → type: "PAYMENT"
        └── 포인트 < 총액  → type: "MIXED"
