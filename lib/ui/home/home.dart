@@ -32,9 +32,6 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     _logger.info('📱 App lifecycle state changed to: $state');
-    if (state == AppLifecycleState.resumed) {
-      _initializePersonCounter();
-    }
   }
 
   @override
