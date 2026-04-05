@@ -137,12 +137,23 @@ class ApiClient {
 
       if (response.statusCode == 201) {
         // 토큰은 Authorization 헤더에 "Bearer <token>" 형태로 담김
-        final authHeader = response.headers['authorization'];
+        // HTTP 헤더는 case-insensitive이므로 소문자와 대문자 모두 확인
+        final authHeader = response.headers['authorization'] ?? response.headers['Authorization'];
+
+        _logger.info('🔍 응답 헤더 확인: ${response.headers}');
+        _logger.info('🔑 Authorization 헤더: $authHeader');
+
         if (authHeader == null || !authHeader.startsWith('Bearer ')) {
           _logger.severe('❌ Authorization 헤더 없음 또는 형식 오류');
-          throw ApiException.fromErrorCode(ApiErrorCode.serverError);
+          _logger.severe('❌ 사용 가능한 헤더들: ${response.headers.keys.toList()}');
+          throw ApiException(
+            code: ApiErrorCode.invalidToken,
+            message: '잘못된 토큰 형식입니다',
+            status: 'FAIL',
+          );
         }
         final token = authHeader.substring('Bearer '.length);
+        _logger.info('✅ 토큰 추출 성공');
         return token;
       }
 
