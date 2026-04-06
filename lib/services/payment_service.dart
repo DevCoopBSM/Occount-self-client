@@ -1,11 +1,11 @@
 import 'package:logging/logging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../models/item_response.dart';
 import '../models/payment_response.dart';
 import '../exception/payment_exception.dart';
 import '../exception/api_exception.dart';
-import '../models/payment_request.dart';
 import '../models/order_request.dart';
 import '../models/cart_item.dart';
 
@@ -66,33 +66,25 @@ class PaymentService {
     }
   }
 
-  /// 결제 실행 (주문 생성 → 결제 순서)
+  /// 주문 생성 (order API만 호출)
   ///
   /// 명세서 변경:
-  /// 1. 결제 전 POST /orders 로 주문 먼저 생성 (신규)
+  /// 1. POST /orders 로 주문 생성만 수행
   /// 2. userCode, userName 파라미터 제거 (토큰 기반 인증)
-  /// 3. userPoint로 결제 타입 결정 (PAYMENT vs MIXED)
-  /// 4. CHARGE 타입 및 충전 로직 제거
-  /// 5. 요청 body에서 userInfo, charge 필드 제거
+  /// 3. 성공 시 주문 완료로 처리
   Future<PaymentResponse> executePayment({
     required List<CartItem> items,
-    // 명세서: 포인트 잔액으로 PAYMENT(포인트 단독) vs MIXED(포인트+카드) 결정
     required int userPoint,
   }) async {
     try {
-      _logger.info('💰 결제 API 요청 시작');
+      _logger.info('💰 주문 생성 API 요청 시작');
 
-      // 결제 총액 계산
-      final totalAmount = items.fold<int>(
-          0, (sum, item) => sum + (item.itemPrice * item.quantity));
+      // 🔍 디버깅: 토큰 확인
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken');
+      _logger.info('🔑 [ORDER API] 저장된 전체 토큰: $token');
 
-      // 명세서: 포인트 ≥ 총액이면 PAYMENT, 부족하면 MIXED
-      final paymentType =
-          totalAmount <= userPoint ? PaymentType.PAYMENT : PaymentType.MIXED;
-
-      _logger.info('💫 결제 타입: $paymentType (총액: $totalAmount, 보유포인트: $userPoint)');
-
-      // Step 1: 주문 생성 (명세서 신규 — 결제 전 필수)
+      // 주문 생성
       final orderRequest = OrderRequest(
         orderInfos: items
             .map((item) => OrderItem(
@@ -102,53 +94,58 @@ class PaymentService {
             .toList(),
       );
 
-      await _apiClient.post(
+      // 🔍 디버깅: 요청 내용 로그
+      _logger.info('📤 [ORDER API] 요청 URL: ${ApiEndpoints.createOrder}');
+      _logger.info('📤 [ORDER API] 요청 Body: ${orderRequest.toJson()}');
+      _logger.info('📤 [ORDER API] 상품 개수: ${items.length}');
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        _logger.info('📤 [ORDER API] 상품[$i]: ID=${item.itemId}, 이름="${item.itemName}", 수량=${item.quantity}, 가격=${item.itemPrice}');
+      }
+
+      final response = await _apiClient.post(
         ApiEndpoints.createOrder,
         orderRequest.toJson(),
         // POST /orders 성공 시 응답 body 없음(200 OK)
-        (json) => json,
-        requiresAuth: true,
-      );
-      // Step 2: 결제 실행
-
-      final paymentItems =
-          items.map((item) => PaymentItem.fromCartItem(item)).toList();
-
-      // 명세서: userInfo, charge 필드 없음 — type + payment만 전송
-      final request = PaymentRequest(
-        type: paymentType,
-        payment: PaymentInfo(
-          items: paymentItems,
-          totalAmount: totalAmount,
-        ),
-      );
-
-
-      return await _apiClient.post(
-        ApiEndpoints.executePayment,
-        request.toJson(),
         (json) {
-          final response = PaymentResponse.fromJson(json as Map<String, dynamic>);
-          if (!response.success) {
-            throw PaymentException(
-              code: 'PAYMENT_FAILED',
-              message: response.message,
-              status: 500,
-            );
-          }
-          return response;
+          // 🔍 디버깅: 응답 내용 로그
+          _logger.info('📥 [ORDER API] 응답 성공: $json');
+          return json ?? {}; // 빈 응답 처리
         },
         requiresAuth: true,
       );
+
+      // 🔍 디버깅: 응답 상태 로그
+      _logger.info('📥 [ORDER API] 최종 응답: $response');
+      _logger.info('✅ 주문이 정상적으로 처리되었습니다');
+
+      // 성공 응답 생성
+      return PaymentResponse(
+        success: true,
+        message: '주문이 정상처리되었습니다',
+        totalAmount: items.fold<int>(
+          0, (sum, item) => sum + (item.itemPrice * item.quantity)
+        ),
+        remainingPoints: userPoint,
+      );
     } catch (e) {
-      _logger.severe('❌ 결제 실패: $e');
+      // 🔍 디버깅: 에러 상세 정보 로그
+      _logger.severe('❌ 주문 생성 실패: $e');
+      _logger.severe('❌ 에러 타입: ${e.runtimeType}');
+      if (e is ApiException) {
+        _logger.severe('❌ [ApiException] 코드: ${e.code.code}, 메시지: ${e.message}, HTTP상태: ${e.code.statusCode}');
+      }
+      if (e is PaymentException) {
+        _logger.severe('❌ [PaymentException] 코드: ${e.code}, 메시지: ${e.message}, 상태: ${e.status}');
+      }
+      _logger.severe('❌ 스택 트레이스: ${StackTrace.current}');
 
       if (e is ApiException) rethrow;
       if (e is PaymentException) rethrow;
 
       throw ApiException.fromErrorCode(
         ApiErrorCode.serverError,
-        '결제 처리 중 오류가 발생했습니다',
+        '주문 처리 중 오류가 발생했습니다',
       );
     }
   }

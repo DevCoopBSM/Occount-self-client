@@ -169,6 +169,9 @@ class PaymentProvider extends ChangeNotifier {
         return;
       }
 
+      // ⏱️ 최소 2초간 결제 진행 모달 표시 (사용자 경험 개선)
+      await Future.delayed(const Duration(seconds: 2));
+
       if (context.mounted) {
         Navigator.of(context).pop(); // 진행 중 모달 닫기
       }
@@ -191,7 +194,7 @@ class PaymentProvider extends ChangeNotifier {
         if (context.mounted) {
           Navigator.pushNamedAndRemoveUntil(
             context,
-            '/scan',
+            '/',
             (route) => false,
           );
         }
@@ -245,7 +248,7 @@ class PaymentProvider extends ChangeNotifier {
         if (shouldReturnToHome && context.mounted) {
           Navigator.pushNamedAndRemoveUntil(
             context,
-            '/scan',
+            '/',
             (route) => false,
           );
         }

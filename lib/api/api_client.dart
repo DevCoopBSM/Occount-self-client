@@ -81,14 +81,29 @@ class ApiClient {
       final uri = Uri.parse('${apiConfig.API_HOST}$endpoint');
 
       final headers = await _getHeaders(requiresAuth: requiresAuth);
+
+      // 🔍 디버깅: 실제 HTTP 요청 로그
+      _logger.info('🚀 [HTTP POST] URL: $uri');
+      _logger.info('🚀 [HTTP POST] Headers: $headers');
+      _logger.info('🚀 [HTTP POST] Body: ${jsonEncode(data)}');
+
       final response = await client.post(
         uri,
         headers: headers,
         body: jsonEncode(data),
       );
 
+      // 🔍 디버깅: 실제 HTTP 응답 로그
+      _logger.info('📥 [HTTP RESPONSE] Status: ${response.statusCode}');
+      _logger.info('📥 [HTTP RESPONSE] Headers: ${response.headers}');
+      _logger.info('📥 [HTTP RESPONSE] Body: ${response.body}');
+
 
       if (response.statusCode == 200) {
+        // 빈 응답 처리
+        if (response.body.isEmpty) {
+          return parser(null);
+        }
         final data = json.decode(utf8.decode(response.bodyBytes));
         return parser(data);
       }
