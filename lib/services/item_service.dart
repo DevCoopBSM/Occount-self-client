@@ -70,17 +70,22 @@ class ItemService {
     }
   }
 
-  /// 전체 상품 목록 조회 (바코드 없는 상품을 ItemResponse로 변환)
+  /// 전체 상품 목록 조회
+  /// 명세서: GET /items — 판매 중인 전체 상품 목록 (바코드 유무 관계없이 모든 상품)
   Future<List<ItemResponse>> getAllItems() async {
     try {
-      final nonBarcodeItems = await getNonBarcodeItems();
-      return nonBarcodeItems.map((item) => ItemResponse(
-        itemId: item.itemId,
-        itemCode: item.itemCode,
-        itemName: item.itemName,
-        itemPrice: item.itemPrice,
-        itemCategory: item.itemCategory,
-      )).toList();
+      final response = await _apiClient.get(
+        ApiEndpoints.getItems,
+        (json) {
+          // 명세서: { "items": [...] } 형식으로 래핑된 응답
+          return (json['items'] as List).map((item) {
+            return ItemResponse.fromJson(item as Map<String, dynamic>);
+          }).toList();
+        },
+        // 명세서: /items/** 는 인증 불필요
+        requiresAuth: false,
+      );
+      return response;
     } catch (e) {
       _logger.severe('❌ 전체 상품 목록 조회 실패: $e');
       rethrow;
