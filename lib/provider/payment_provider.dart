@@ -361,14 +361,26 @@ class PaymentProvider extends ChangeNotifier {
 
   void addAllItem(BuildContext context, ItemResponse item) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    authProvider.addToCart(CartItem(
-      itemId: item.itemId,
-      itemCode: item.itemCode,
-      itemName: item.itemName,
-      itemPrice: item.itemPrice,
-      itemCategory: item.itemCategory,
-      quantity: 1,
-    ));
+
+    // 이미 장바구니에 있는 아이템인지 확인
+    final existingItemIndex = authProvider.cartItems
+        .indexWhere((cartItem) => cartItem.itemId == item.itemId);
+
+    if (existingItemIndex != -1) {
+      // 이미 있는 아이템이면 수량만 증가
+      authProvider.increaseQuantity(item.itemId);
+    } else {
+      // 새 아이템이면 장바구니에 추가
+      final cartItem = CartItem(
+        itemId: item.itemId,
+        itemCode: item.itemCode,
+        itemName: item.itemName,
+        itemPrice: item.itemPrice,
+        itemCategory: item.itemCategory,
+        quantity: 1,
+      );
+      authProvider.addToCart(cartItem);
+    }
   }
 
   Future<void> cancelPayment(BuildContext context) async {
