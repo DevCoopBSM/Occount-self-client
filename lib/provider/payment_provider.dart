@@ -263,8 +263,6 @@ class PaymentProvider extends ChangeNotifier {
     required List<CartItem> items,
     required int userPoint,
   }) async {
-    final totalPrice = calculateTotalPrice(items);
-
     // 명세서 변경: userCode/userName 제거, userPoint로 결제 타입 결정
     return await _paymentService.executePayment(
       items: items,

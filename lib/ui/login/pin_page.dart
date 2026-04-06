@@ -4,8 +4,6 @@ import '../../provider/auth_provider.dart';
 import '../_constant/component/button.dart';
 import '../_constant/theme/devcoop_text_style.dart';
 import '../_constant/theme/devcoop_colors.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../api/api_config.dart';
 
 class PinPage extends StatefulWidget {
   const PinPage({Key? key}) : super(key: key);
@@ -18,7 +16,6 @@ class _PinPageState extends State<PinPage> {
   String? _userCode;
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocus = FocusNode();
-  final ApiConfig _apiConfig = ApiConfig();
 
   void onNumberButtonPressed(int number, TextEditingController controller) {
     if (controller.text.length < 6) {
@@ -134,15 +131,6 @@ class _PinPageState extends State<PinPage> {
     FocusScope.of(context).requestFocus(_pinFocus);
   }
 
-  Future<void> _launchWebsite() async {
-    final Uri url = Uri.parse(_apiConfig.webUrl);
-    if (!await launchUrl(url)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('웹사이트를 열 수 없습니다')),
-      );
-    }
-  }
 
   @override
   void initState() {
@@ -166,8 +154,6 @@ class _PinPageState extends State<PinPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-
     return Scaffold(
       body: Container(
         margin: const EdgeInsets.symmetric(

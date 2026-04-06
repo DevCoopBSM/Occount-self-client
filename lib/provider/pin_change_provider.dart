@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
 import '../exception/api_exception.dart';
 
 class PinChangeProvider with ChangeNotifier {
-  final AuthService _authService;
   bool _isLoading = false;
   String? _error;
 
-  PinChangeProvider(this._authService);
+  PinChangeProvider();
 
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -30,16 +28,6 @@ class PinChangeProvider with ChangeNotifier {
         message: '핀번호 변경 기능은 현재 지원하지 않습니다',
         status: '501',
       );
-
-      _isLoading = false;
-      notifyListeners();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('핀번호가 변경되었습니다')),
-        );
-      }
-      return true;
     } catch (e) {
       _error = e is ApiException ? e.message : '핀번호 변경에 실패했습니다';
       _isLoading = false;

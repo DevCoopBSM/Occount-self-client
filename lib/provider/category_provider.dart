@@ -10,7 +10,6 @@ class CategoryProvider extends ChangeNotifier {
   List<String> _categories = [];
   String? _selectedCategory;
   final Map<String, List<NonBarcodeItemResponse>> _categoryItems = {};
-  List<String>? _cachedCategories;
   bool _isLoading = false;
   String? _error;
 
@@ -88,7 +87,6 @@ class CategoryProvider extends ChangeNotifier {
   void dispose() {
     _categories.clear();
     _categoryItems.clear();
-    _cachedCategories = null;
     super.dispose();
   }
 }
