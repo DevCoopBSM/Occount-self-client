@@ -46,19 +46,16 @@ class AuthProvider with ChangeNotifier {
 
       final response = await _authService.login(codeNumber, pin);
       await _saveUserData(response);
-      _logger.info('👤 로그인 성공 및 상태 저장 완료: ${_userInfo.userName}');
       return LoginResult(success: true);
     } catch (e) {
       _isLoading = false;
 
       if (e is ApiException) {
-        _logger.info('🔴 로그인 에러 발생: code=${e.code.code}, message=${e.message}');
 
         if (e.code.code == 'DEFAULT_PIN_IN_USE') {
           // code.code로 정확한 에러 코드 비교
           _error = e.code.code; // 원본 에러 코드 저장
           notifyListeners();
-          _logger.info('🔑 초기 비밀번호 사용 중 - 모달 표시 필요');
           return LoginResult(
             success: false,
             message: e.message,
@@ -88,7 +85,6 @@ class AuthProvider with ChangeNotifier {
     _userInfo = response.userInfo;
     _isLoggedIn = true;
     _isLoading = false;
-    _logger.info('👤 로그인 성공: ${_userInfo.userName}');
     notifyListeners();
   }
 
@@ -112,31 +108,12 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> validatePin(String pin) async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
-
-      if (_userInfo.userCode.isEmpty) {
-        throw Exception('사용자 정보가 없습니다');
-      }
-
-      await _authService.validatePin(_userInfo.userCode, pin);
-
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
-      rethrow;
-    }
-  }
+  // validatePin() 제거 — 명세서에서 해당 엔드포인트 삭제됨
 
   Future<void> updatePoint() async {
     try {
-      final updatedPoint = await _authService.getPoint(_userInfo.userCode);
+      // 명세서 변경: getPoint()는 path param 없음 (토큰 기반)
+      final updatedPoint = await _authService.getPoint();
       if (updatedPoint != null) {
         _userInfo = UserInfo(
           userCode: _userInfo.userCode,
@@ -174,14 +151,12 @@ class AuthProvider with ChangeNotifier {
   }
 
   void resetState() {
-    _logger.info('👤 사용자 상태 초기화 시작');
     _isLoading = false;
     _error = null;
     _isLoggedIn = false;
     _userInfo = _emptyUserInfo;
     _cartItems.clear();
     notifyListeners();
-    _logger.info('👤 사용자 상태 및 장바구니 초기화 완료');
   }
 
   void increaseQuantity(int itemId) {

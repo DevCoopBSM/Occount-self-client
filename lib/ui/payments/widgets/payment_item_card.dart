@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../../models/cart_item.dart';
 import '../../../provider/auth_provider.dart';
 import '../../_constant/util/number_format_util.dart';
-import '../../_constant/theme/devcoop_colors.dart';
 import '../../_constant/theme/devcoop_text_style.dart';
 
 class PaymentItemCard extends StatelessWidget {

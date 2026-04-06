@@ -80,10 +80,9 @@ class PaymentActionButtons extends StatelessWidget {
                   return;
                 }
 
+                // 명세서 변경: userCode/userName 제거 — 토큰 기반 인증
                 await paymentProvider.processPayment(
                   context: context,
-                  userCode: authProvider.userInfo.userCode,
-                  userName: authProvider.userInfo.userName,
                 );
               },
             ),

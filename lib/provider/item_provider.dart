@@ -28,7 +28,6 @@ class ItemProvider extends ChangeNotifier {
 
       final normalizedBarcode = _itemService.normalizeBarcode(barcode);
       final item = await _itemService.getItemByCode(normalizedBarcode);
-      _logger.info('📦 상품 조회 성공: ${item.itemName}');
       return item;
     } catch (e) {
       _logger.severe('❌ 상품 조회 에러: $e');

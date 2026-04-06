@@ -1,13 +1,13 @@
 import 'package:logging/logging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../models/item_response.dart';
 import '../models/payment_response.dart';
 import '../exception/payment_exception.dart';
-import '../models/payment_request.dart';
-import '../models/cart_item.dart';
-import 'dart:convert';
 import '../exception/api_exception.dart';
+import '../models/order_request.dart';
+import '../models/cart_item.dart';
 
 class PaymentService {
   final ApiClient _apiClient;
@@ -18,34 +18,16 @@ class PaymentService {
 
   Future<ItemResponse> getItemByCode(String itemCode) async {
     try {
-      _logger.info('📤 상품 조회 요청 - 바코드: $itemCode');
-
+      // 명세서 변경: path param 방식, /items/{barcode}
       final response = await _apiClient.get(
-        '${ApiEndpoints.getItem}/$itemCode',
+        '${ApiEndpoints.getItems}/$itemCode',
         (json) {
-          _logger.info('📥 API 응답 원본: $json');
-          final item = ItemResponse.fromJson(json);
-          _logger.info('''
-📦 조회된 상품 정보:
-- 상품ID: ${item.itemId}
-- 바코드: ${item.itemCode}
-- 상품명: ${item.itemName}
-- 가격: ${item.itemPrice}원
-- 카테고리: ${item.itemCategory}
-''');
+          final item = ItemResponse.fromJson(json as Map<String, dynamic>);
           return item;
         },
+        // 명세서: /items/** 인증 불필요
+        requiresAuth: false,
       );
-
-      // 바코드 일치 여부 확인
-      if (response.itemCode != itemCode) {
-        _logger.warning('⚠️ 바코드 불일치! 요청: $itemCode, 응답: ${response.itemCode}');
-        throw PaymentException(
-          code: 'ITEM_MISMATCH',
-          message: '잘못된 상품이 조회되었습니다.',
-          status: 400,
-        );
-      }
 
       return response;
     } catch (e) {
@@ -64,10 +46,13 @@ class PaymentService {
     }
 
     try {
+      // 명세서 변경: 응답이 { "items": [...] } 래핑 구조
       final response = await _apiClient.get(
         ApiEndpoints.getNonBarcodeItems,
-        (json) =>
-            (json as List).map((item) => ItemResponse.fromJson(item)).toList(),
+        (json) => (json['items'] as List)
+            .map((item) => ItemResponse.fromJson(item as Map<String, dynamic>))
+            .toList(),
+        requiresAuth: false,
       );
       _cachedItems = response;
       return response;
@@ -81,129 +66,86 @@ class PaymentService {
     }
   }
 
+  /// 주문 생성 (order API만 호출)
+  ///
+  /// 명세서 변경:
+  /// 1. POST /orders 로 주문 생성만 수행
+  /// 2. userCode, userName 파라미터 제거 (토큰 기반 인증)
+  /// 3. 성공 시 주문 완료로 처리
   Future<PaymentResponse> executePayment({
     required List<CartItem> items,
-    required String userCode,
-    required String userName,
+    required int userPoint,
   }) async {
     try {
-      _logger.info('💰 결제 API 요청 시작');
+      _logger.info('💰 주문 생성 API 요청 시작');
 
-      // 충전 아이템과 일반 상품 분리
-      final chargeItem = items.firstWhere(
-        (item) => item.itemCategory == 'CHARGE',
-        orElse: () => CartItem(
-          itemId: 0,
-          itemName: '',
-          itemPrice: 0,
-          quantity: 0,
-          itemCategory: 'NONE',
-          itemCode: '',
-        ),
+      // 🔍 디버깅: 토큰 확인
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken');
+      _logger.info('🔑 [ORDER API] 저장된 전체 토큰: $token');
+
+      // 주문 생성
+      final orderRequest = OrderRequest(
+        orderInfos: items
+            .map((item) => OrderItem(
+                  itemId: item.itemId,
+                  orderQuantity: item.quantity,
+                ))
+            .toList(),
       );
 
-      final productItems =
-          items.where((item) => item.itemCategory != 'CHARGE').toList();
-
-      // 요청 타입 결정
-      PaymentType requestType;
-      if (chargeItem.itemCategory == 'CHARGE' && productItems.isEmpty) {
-        requestType = PaymentType.CHARGE;
-      } else if (chargeItem.itemCategory == 'CHARGE' &&
-          productItems.isNotEmpty) {
-        requestType = PaymentType.MIXED;
-      } else {
-        requestType = PaymentType.PAYMENT;
+      // 🔍 디버깅: 요청 내용 로그
+      _logger.info('📤 [ORDER API] 요청 URL: ${ApiEndpoints.createOrder}');
+      _logger.info('📤 [ORDER API] 요청 Body: ${orderRequest.toJson()}');
+      _logger.info('📤 [ORDER API] 상품 개수: ${items.length}');
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        _logger.info('📤 [ORDER API] 상품[$i]: ID=${item.itemId}, 이름="${item.itemName}", 수량=${item.quantity}, 가격=${item.itemPrice}');
       }
 
-      _logger.info('💫 결제 요청 시작: $requestType');
-
-      // 요청 객체 구성
-      var request = PaymentRequest(
-        type: requestType,
-        userInfo: UserInfo(id: userCode),
-      );
-
-      // 충전 정보 추가
-      if (chargeItem.itemCategory == 'CHARGE') {
-        request = request.copyWith(
-          charge: ChargeInfo(
-            amount: chargeItem.itemPrice,
-            method: 'CARD',
-          ),
-        );
-        _logger.info('💳 충전 정보: ${chargeItem.itemPrice}원');
-      }
-
-      // 상품 결제 정보 추가
-      if (productItems.isNotEmpty) {
-        _logger.info('📦 상품 목록: ${productItems.length}개');
-        final paymentItems =
-            productItems.map((item) => PaymentItem.fromCartItem(item)).toList();
-
-        final productTotalAmount = productItems.fold<int>(
-            0, (sum, item) => sum + (item.itemPrice * item.quantity));
-
-        request = request.copyWith(
-          payment: PaymentInfo(
-            items: paymentItems,
-            totalAmount: productTotalAmount,
-          ),
-        );
-        _logger.info('💰 상품 결제 정보: $productTotalAmount원');
-      }
-
-      _logger.info('📡 요청 데이터: ${jsonEncode(request.toJson())}');
-
-      return await _apiClient.post(
-        ApiEndpoints.executePayment,
-        request.toJson(),
+      final response = await _apiClient.post(
+        ApiEndpoints.createOrder,
+        orderRequest.toJson(),
+        // POST /orders 성공 시 응답 body 없음(200 OK)
         (json) {
-          final response = PaymentResponse.fromJson(json);
-          if (!response.success) {
-            throw PaymentException(
-              code: 'PAYMENT_FAILED',
-              message: response.message,
-              status: 500,
-            );
-          }
-          return response;
+          // 🔍 디버깅: 응답 내용 로그
+          _logger.info('📥 [ORDER API] 응답 성공: $json');
+          return json ?? {}; // 빈 응답 처리
         },
+        requiresAuth: true,
+      );
+
+      // 🔍 디버깅: 응답 상태 로그
+      _logger.info('📥 [ORDER API] 최종 응답: $response');
+      _logger.info('✅ 주문이 정상적으로 처리되었습니다');
+
+      // 성공 응답 생성
+      return PaymentResponse(
+        success: true,
+        message: '주문이 정상처리되었습니다',
+        totalAmount: items.fold<int>(
+          0, (sum, item) => sum + (item.itemPrice * item.quantity)
+        ),
+        remainingPoints: userPoint,
       );
     } catch (e) {
-      _logger.severe('❌ 결제 실패: $e');
-
-      // ApiException 처리
+      // 🔍 디버깅: 에러 상세 정보 로그
+      _logger.severe('❌ 주문 생성 실패: $e');
+      _logger.severe('❌ 에러 타입: ${e.runtimeType}');
       if (e is ApiException) {
-        rethrow; // ApiException을 그대로 전달
+        _logger.severe('❌ [ApiException] 코드: ${e.code.code}, 메시지: ${e.message}, HTTP상태: ${e.code.statusCode}');
       }
-
-      // PaymentException 처리
       if (e is PaymentException) {
-        rethrow; // PaymentException도 그대로 전달
+        _logger.severe('❌ [PaymentException] 코드: ${e.code}, 메시지: ${e.message}, 상태: ${e.status}');
       }
+      _logger.severe('❌ 스택 트레이스: ${StackTrace.current}');
 
-      // 기타 예외는 ApiException으로 변환
+      if (e is ApiException) rethrow;
+      if (e is PaymentException) rethrow;
+
       throw ApiException.fromErrorCode(
         ApiErrorCode.serverError,
-        '결제 처리 중 오류가 발생했습니다',
-      );
-    }
-  }
-
-  Future<void> chargePoint(int amount) async {
-    try {
-      await _apiClient.post(
-        ApiEndpoints.chargePoint,
-        {'amount': amount},
-        (json) => json,
-      );
-    } catch (e) {
-      _logger.severe('포인트 충전 실패: $e');
-      throw PaymentException(
-        code: 'CHARGE_FAILED',
-        message: '충전 중 오류가 발생했습니다.',
-        status: 500,
+        '주문 처리 중 오류가 발생했습니다',
       );
     }
   }

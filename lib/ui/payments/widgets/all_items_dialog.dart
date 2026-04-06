@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../provider/payment_provider.dart';
-import '../../../models/non_barcode_item_response.dart';
+import '../../../models/item_response.dart';
 import '../../_constant/theme/devcoop_colors.dart';
 import '../../_constant/theme/devcoop_text_style.dart';
 import '../../_constant/util/number_format_util.dart';
 import '../../_constant/component/button.dart';
 import '../../../provider/auth_provider.dart';
 
-class NonBarcodeDialog extends StatefulWidget {
-  const NonBarcodeDialog({Key? key}) : super(key: key);
+class AllItemsDialog extends StatefulWidget {
+  const AllItemsDialog({Key? key}) : super(key: key);
 
   @override
-  State<NonBarcodeDialog> createState() => _NonBarcodeDialogState();
+  State<AllItemsDialog> createState() => _AllItemsDialogState();
 }
 
-class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
+class _AllItemsDialogState extends State<AllItemsDialog> {
   String _selectedCategory = '전체';
 
   @override
@@ -23,27 +23,25 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<PaymentProvider>(context, listen: false)
-          .loadNonBarcodeItems();
+          .loadAllItems();
     });
   }
 
-  void _addItemToCart(BuildContext context, NonBarcodeItemResponse item) {
+  void _addItemToCart(BuildContext context, ItemResponse item) {
     final paymentProvider =
         Provider.of<PaymentProvider>(context, listen: false);
-    paymentProvider.addNonBarcodeItem(context, item);
+    paymentProvider.addAllItem(context, item);
 
-    // 현재 장바구니의 총액 계산 및 스낵바 표시
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final totalAmount = authProvider.cartItems.fold<int>(
       0,
       (sum, item) => sum + (item.itemPrice * item.quantity),
     );
 
-    // 스낵바를 오버레이로 표시
     final overlay = Overlay.of(context);
     final overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        top: MediaQuery.of(context).size.height * 0.1, // 화면 상단에서 10% 위치
+        top: MediaQuery.of(context).size.height * 0.1,
         left: 20,
         right: 20,
         child: Material(
@@ -81,7 +79,6 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
 
     overlay.insert(overlayEntry);
 
-    // 2초 후 제거
     Future.delayed(const Duration(seconds: 2), () {
       overlayEntry.remove();
     });
@@ -100,7 +97,7 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '바코드 없는 상품',
+                  '전체 상품',
                   style: DevCoopTextStyle.bold_30.copyWith(
                     color: DevCoopColors.black,
                   ),
@@ -119,7 +116,7 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (paymentProvider.nonBarcodeItems.isEmpty) {
+                  if (paymentProvider.allItems.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -131,7 +128,7 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            '바코드 없는 상품이 없습니다.',
+                            '상품이 없습니다.',
                             style: DevCoopTextStyle.bold_20.copyWith(
                               color: Colors.grey[600],
                             ),
@@ -143,11 +140,11 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
 
                   final categories = [
                     '전체',
-                    ...getUniqueCategories(paymentProvider.nonBarcodeItems)
+                    ...getUniqueCategories(paymentProvider.allItems)
                   ];
 
                   final filteredItems = filterItemsByCategory(
-                    paymentProvider.nonBarcodeItems,
+                    paymentProvider.allItems,
                     _selectedCategory,
                   );
 
@@ -204,14 +201,25 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
                                               style: DevCoopTextStyle.bold_20,
                                               overflow: TextOverflow.ellipsis,
                                             ),
-                                            Text(
-                                              item.itemCategory,
-                                              style: DevCoopTextStyle
-                                                  .medium_20
-                                                  .copyWith(
-                                                color: Colors.black54,
+                                            if (item.itemCategory.isNotEmpty)
+                                              Text(
+                                                item.itemCategory,
+                                                style: DevCoopTextStyle
+                                                    .medium_20
+                                                    .copyWith(
+                                                  color: Colors.black54,
+                                                ),
                                               ),
-                                            ),
+                                            if (item.itemCode.isNotEmpty)
+                                              Text(
+                                                '바코드: ${item.itemCode}',
+                                                style: DevCoopTextStyle
+                                                    .medium_20
+                                                    .copyWith(
+                                                  color: Colors.black38,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
                                           ],
                                         ),
                                       ),
@@ -246,12 +254,17 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
     );
   }
 
-  List<String> getUniqueCategories(List<NonBarcodeItemResponse> items) {
-    return items.map((e) => e.itemCategory).toSet().toList()..sort();
+  List<String> getUniqueCategories(List<ItemResponse> items) {
+    return items
+        .where((item) => item.itemCategory.isNotEmpty)
+        .map((e) => e.itemCategory)
+        .toSet()
+        .toList()
+      ..sort();
   }
 
-  List<NonBarcodeItemResponse> filterItemsByCategory(
-    List<NonBarcodeItemResponse> items,
+  List<ItemResponse> filterItemsByCategory(
+    List<ItemResponse> items,
     String category,
   ) {
     if (category == '전체') return items;
