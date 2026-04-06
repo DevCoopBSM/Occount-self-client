@@ -69,4 +69,21 @@ class ItemService {
       rethrow;
     }
   }
+
+  /// 전체 상품 목록 조회 (바코드 없는 상품을 ItemResponse로 변환)
+  Future<List<ItemResponse>> getAllItems() async {
+    try {
+      final nonBarcodeItems = await getNonBarcodeItems();
+      return nonBarcodeItems.map((item) => ItemResponse(
+        itemId: item.itemId,
+        itemCode: item.itemCode,
+        itemName: item.itemName,
+        itemPrice: item.itemPrice,
+        itemCategory: item.itemCategory,
+      )).toList();
+    } catch (e) {
+      _logger.severe('❌ 전체 상품 목록 조회 실패: $e');
+      rethrow;
+    }
+  }
 }

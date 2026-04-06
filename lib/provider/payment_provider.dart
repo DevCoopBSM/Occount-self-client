@@ -4,6 +4,7 @@ import '../services/item_service.dart';
 import 'package:logging/logging.dart';
 import '../models/cart_item.dart';
 import '../models/non_barcode_item_response.dart';
+import '../models/item_response.dart';
 import '../services/charge_service.dart';
 import '../ui/payments/widgets/payment_processing_dialog.dart';
 import '../ui/payments/widgets/payment_result_dialog.dart';
@@ -23,6 +24,7 @@ class PaymentProvider extends ChangeNotifier {
   String? _error;
   int _chargeAmount = 0;
   final List<NonBarcodeItemResponse> _nonBarcodeItems = [];
+  final List<ItemResponse> _allItems = [];
   bool _isProcessingDialogVisible = false;
 
   PaymentProvider(this._paymentService, this._itemService, this._chargeService);
@@ -30,6 +32,7 @@ class PaymentProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<NonBarcodeItemResponse> get nonBarcodeItems => _nonBarcodeItems;
+  List<ItemResponse> get allItems => _allItems;
   int get chargeAmount => _chargeAmount;
 
   void addChargeAmount(int amount) {
@@ -333,6 +336,36 @@ class PaymentProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> loadAllItems() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final items = await _itemService.getAllItems();
+      _allItems.clear();
+      _allItems.addAll(items);
+      _error = null;
+    } catch (e) {
+      _error = '전체 상품 목록을 불러오는데 실패했습니다';
+      _logger.severe('전체 상품 로드 실패: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void addAllItem(BuildContext context, ItemResponse item) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    authProvider.addToCart(CartItem(
+      itemId: item.itemId,
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      itemPrice: item.itemPrice,
+      itemCategory: item.itemCategory,
+      quantity: 1,
+    ));
   }
 
   Future<void> cancelPayment(BuildContext context) async {

@@ -4,6 +4,7 @@ import '../../_constant/theme/devcoop_text_style.dart';
 import '../../_constant/component/button.dart';
 import '../../../provider/payment_provider.dart';
 import './non_barcode_dialog.dart';
+import './all_items_dialog.dart';
 
 class BarcodeInput extends StatefulWidget {
   const BarcodeInput({Key? key}) : super(key: key);
@@ -93,26 +94,61 @@ class BarcodeInputState extends State<BarcodeInput> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          flex: 1,
-          child: mainTextButton(
-            text: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.add_shopping_cart, size: 20),
-                const SizedBox(width: 4),
-                Text(
-                  "바코드 없는 상품",
-                  style: textStyle,
+          flex: 2,
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 45,
+                  child: mainTextButton(
+                    text: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.add_shopping_cart, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          "바코드 없는 상품",
+                          style: textStyle.copyWith(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const NonBarcodeDialog(),
+                      );
+                    },
+                  ),
                 ),
-              ],
-            ),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => const NonBarcodeDialog(),
-              );
-            },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 45,
+                  child: mainTextButton(
+                    text: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.inventory, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          "전체 상품",
+                          style: textStyle.copyWith(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const AllItemsDialog(),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
