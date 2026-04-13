@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'provider/auth_provider.dart';
 import 'provider/payment_provider.dart';
@@ -87,6 +88,16 @@ Future<void> main() async {
       child: MaterialApp(
         navigatorKey: globalNavigatorKey,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
+
+        // 한글 인코딩 지원 설정
+        debugShowCheckedModeBanner: false,
+
+        // 한글 지원 폰트 테마 설정
+        theme: ThemeData(
+          fontFamily: GoogleFonts.notoSans().fontFamily,
+          textTheme: GoogleFonts.notoSansTextTheme(),
+        ),
+
         initialRoute: '/',
         routes: {
           '/': (context) => Consumer<AuthProvider>(
@@ -96,9 +107,12 @@ Future<void> main() async {
                       body: Center(child: CircularProgressIndicator()),
                     );
                   }
-                  return authProvider.isLoggedIn
-                      ? const Home()
-                      : const BarcodeScanPage();
+
+                  if (authProvider.isLoggedIn || authProvider.isGuestMode) {
+                    return const Home();
+                  } else {
+                    return const BarcodeScanPage();
+                  }
                 },
               ),
           '/payment': (context) => const PaymentPage(),

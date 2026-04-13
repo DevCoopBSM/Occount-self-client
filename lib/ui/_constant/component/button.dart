@@ -62,7 +62,7 @@ class _MainTextButtonState extends State<MainTextButton> {
               : [
                   BoxShadow(
                     offset: const Offset(0, 4),
-                    color: DevCoopColors.black.withOpacity(0.25),
+                    color: DevCoopColors.black.withValues(alpha: 0.25),
                     blurRadius: 4.0,
                   ),
                 ],
@@ -149,7 +149,7 @@ class _PinButtonState extends State<PinButton> {
               ? []
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     offset: const Offset(0, 4),
                     blurRadius: 4.0,
                   ),
@@ -224,7 +224,7 @@ class _SpecialPinButtonState extends State<SpecialPinButton> {
               ? []
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     offset: const Offset(0, 4),
                     blurRadius: 4.0,
                   ),
