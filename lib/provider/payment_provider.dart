@@ -111,7 +111,7 @@ class PaymentProvider extends ChangeNotifier {
     if (context.mounted) {
       showDialog(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: true,
         builder: (context) {
           final calculation = calculatePayment(
               authProvider.cartItems, authProvider.userInfo.userPoint);
@@ -125,7 +125,6 @@ class PaymentProvider extends ChangeNotifier {
             hasCharge: false,
             onClose: () {
               cancelPayment(context);
-              Navigator.of(context).pop();
             },
           );
         },
@@ -135,23 +134,12 @@ class PaymentProvider extends ChangeNotifier {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.cartItems.isEmpty) {
+        // 장바구니가 비어있으면 즉시 진행 중 모달 닫고 에러 메시지 표시
+        _isProcessingDialogVisible = false;
         if (context.mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => PaymentProcessingDialog(
-              totalAmount: 0,
-              paymentAmount: 0,
-              cardAmount: 0,
-              isChargeOnly: false,
-              hasCharge: false,
-              onClose: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('상품을 추가해주세요')),
-                );
-              },
-            ),
+          Navigator.of(context).pop(); // 진행 중 모달 닫기
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('상품을 추가해주세요')),
           );
         }
         return;
@@ -162,6 +150,7 @@ class PaymentProvider extends ChangeNotifier {
       final result = await _paymentService.executePayment(
         items: authProvider.cartItems,
         userPoint: authProvider.userInfo.userPoint,
+        isGuestMode: authProvider.isGuestMode,
       );
 
       // 모달이 이미 닫혔다면 응답 처리하지 않음
@@ -201,14 +190,34 @@ class PaymentProvider extends ChangeNotifier {
       }
     } catch (e) {
       _logger.severe('❌ 결제 처리 실패: $e');
+      _logger.severe('❌ 에러 타입: ${e.runtimeType}');
+
+      if (e is ApiException) {
+        _logger.severe('❌ [ApiException] 코드: ${e.code.code}, 메시지: ${e.message}');
+      }
+      if (e is PaymentException) {
+        _logger.severe('❌ [PaymentException] 코드: ${e.code}, 메시지: ${e.message}');
+      }
+
 
       // 모달이 이미 닫혔다면 에러 처리하지 않음
       if (!_isProcessingDialogVisible) {
         return;
       }
 
+      // 에러 발생 시 즉시 진행 중 모달 상태를 false로 변경
+      _isProcessingDialogVisible = false;
+
       if (context.mounted) {
-        Navigator.of(context).pop(); // 진행 중 모달 닫기
+        // 결제 진행 중 모달 강제로 닫기
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (e) {
+          // 이미 닫혔거나 닫을 수 없는 경우 무시
+        }
+
+        // 모달이 완전히 닫힐 때까지 잠시 대기
+        await Future.delayed(const Duration(milliseconds: 300));
 
         String errorMessage;
         String errorCode = '';
@@ -233,16 +242,18 @@ class PaymentProvider extends ChangeNotifier {
           shouldReturnToHome = true;
         }
 
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => PaymentResultDialog(
-            errorMessage: errorMessage,
-            errorCode: errorCode,
-            isSuccess: false,
-            shouldReturnToHome: shouldReturnToHome,
-          ),
-        );
+        if (context.mounted) {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => PaymentResultDialog(
+              errorMessage: errorMessage,
+              errorCode: errorCode,
+              isSuccess: false,
+              shouldReturnToHome: shouldReturnToHome,
+            ),
+          );
+        }
 
         // 홈으로 돌아가야 하는 경우에만 네비게이션 실행
         if (shouldReturnToHome && context.mounted) {

@@ -26,7 +26,7 @@ class PaymentProcessingDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: true,
       child: Dialog(
         backgroundColor: Colors.white,
         child: Container(
@@ -101,11 +101,7 @@ class PaymentProcessingDialog extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () {
-                  final paymentProvider =
-                      Provider.of<PaymentProvider>(context, listen: false);
-                  paymentProvider.cancelPayment(context);
-                },
+                onPressed: onClose,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: DevCoopColors.error,
                   foregroundColor: Colors.white,
