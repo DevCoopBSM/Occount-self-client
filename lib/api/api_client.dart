@@ -114,7 +114,7 @@ class ApiClient {
 
       if (response.body.isNotEmpty) {
         try {
-          final errorJson = jsonDecode(response.body);
+          final errorJson = json.decode(utf8.decode(response.bodyBytes));
           // 명세서: 에러 코드가 json['message']에 담김 (구 API의 json['code']와 다름)
           errorCode = errorJson['message'];
           errorMessage = errorJson['message'];
@@ -178,7 +178,7 @@ class ApiClient {
 
       if (response.body.isNotEmpty) {
         try {
-          final errorJson = jsonDecode(response.body);
+          final errorJson = json.decode(utf8.decode(response.bodyBytes));
           errorCode = errorJson['message'];
           errorMessage = errorJson['message'];
         } catch (e) {

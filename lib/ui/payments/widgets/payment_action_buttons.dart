@@ -41,7 +41,11 @@ class PaymentActionButtons extends StatelessWidget {
                 ],
               ),
               onTap: () {
-                authProvider.logout();
+                if (authProvider.isGuestMode) {
+                  authProvider.resetState();
+                } else {
+                  authProvider.logout();
+                }
                 Navigator.of(context).pushNamedAndRemoveUntil(
                   '/',
                   (route) => false,

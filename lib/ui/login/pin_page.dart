@@ -290,7 +290,7 @@ class _PinPageState extends State<PinPage> {
                                           DevCoopTextStyle.medium_30.copyWith(
                                         fontSize: 15,
                                         color: DevCoopColors.black
-                                            .withOpacity(0.5),
+                                            .withValues(alpha: 0.5),
                                       ),
                                       border: InputBorder.none,
                                     ),

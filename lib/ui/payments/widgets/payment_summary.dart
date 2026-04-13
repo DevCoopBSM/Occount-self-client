@@ -19,9 +19,10 @@ class PaymentSummary extends StatelessWidget {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
         final paymentProvider = Provider.of<PaymentProvider>(context);
+        final effectivePoints = authProvider.isGuestMode ? 0 : currentPoints;
         final calculation = paymentProvider.calculatePayment(
           authProvider.cartItems,
-          currentPoints,
+          effectivePoints,
         );
 
         return Container(
@@ -45,24 +46,29 @@ class PaymentSummary extends StatelessWidget {
               ),
               if (!calculation.isChargeOnly) ...[
                 const Divider(color: DevCoopColors.grey),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('포인트 사용', style: DevCoopTextStyle.medium_30),
-                    Text(
-                      '${NumberFormatUtil.convert1000Number(calculation.expectedPoints)}원',
-                      style: DevCoopTextStyle.medium_30,
-                    ),
-                  ],
-                ),
-                if (calculation.expectedCardAmount > 0) ...[
+                if (!authProvider.isGuestMode) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('포인트 사용', style: DevCoopTextStyle.medium_30),
+                      Text(
+                        '${NumberFormatUtil.convert1000Number(calculation.expectedPoints)}원',
+                        style: DevCoopTextStyle.medium_30,
+                      ),
+                    ],
+                  ),
+                ],
+                if (calculation.expectedCardAmount > 0 || authProvider.isGuestMode) ...[
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('카드 결제', style: DevCoopTextStyle.medium_30),
                       Text(
-                        '${NumberFormatUtil.convert1000Number(calculation.expectedCardAmount)}원',
+                        authProvider.isGuestMode ? '카드 결제' : '카드 결제',
+                        style: DevCoopTextStyle.medium_30,
+                      ),
+                      Text(
+                        '${NumberFormatUtil.convert1000Number(authProvider.isGuestMode ? calculation.totalPrice : calculation.expectedCardAmount)}원',
                         style: DevCoopTextStyle.medium_30,
                       ),
                     ],

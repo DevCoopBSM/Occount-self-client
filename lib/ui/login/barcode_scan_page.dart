@@ -69,7 +69,7 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
     return ScreenUtilInit(
       builder: (context, child) => Scaffold(
         body: PopScope(
-          onPopInvoked: (bool didPop) async {
+          onPopInvokedWithResult: (bool didPop, Object? result) async {
             FocusScope.of(context).requestFocus(_barcodeFocus);
           },
           child: SingleChildScrollView(
@@ -89,30 +89,30 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: 0.2.sh),
+                      SizedBox(height: 0.1.sh),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                '학생증 번호',
-                                style: DevCoopTextStyle.medium_30.copyWith(
-                                  color: DevCoopColors.black,
-                                ),
-                              ),
-                              const SizedBox(width: 40),
-                              Container(
-                                alignment: Alignment.center,
-                                width: 500,
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 34, horizontal: 12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFECECEC),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: TextFormField(
+                          // 라벨을 상단에 배치
+                          Text(
+                            '학생증 번호',
+                            style: DevCoopTextStyle.medium_30.copyWith(
+                              color: DevCoopColors.black,
+                              fontSize: 24,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // 입력 필드를 하단에 배치
+                          Container(
+                            alignment: Alignment.center,
+                            width: 500,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 34, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECECEC),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: TextFormField(
                                   controller: _codeNumberController,
                                   focusNode: _barcodeFocus,
                                   onFieldSubmitted: (value) {
@@ -143,14 +143,12 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                                   maxLines: 1,
                                 ),
                               ),
-                            ],
-                          ),
                           const SizedBox(height: 60),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              mainTextButton(
-                                text: '다음으로',
+                                mainTextButton(
+                                  text: '로그인',
                                 onTap: () {
                                   if (_formKey.currentState?.validate() ??
                                       false) {
@@ -161,6 +159,25 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                                       arguments: _codeNumberController.text,
                                     );
                                   }
+                                },
+                              ),
+                              const SizedBox(width: 40),
+                              mainTextButton(
+                                text: '비회원',
+                                onTap: () {
+                                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                                  authProvider.enableGuestMode();
+
+                                  // 상태 변경 후 명시적으로 홈으로 이동
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (mounted) {
+                                      Navigator.pushNamedAndRemoveUntil(
+                                        context,
+                                        '/',
+                                        (route) => false,
+                                      );
+                                    }
+                                  });
                                 },
                               ),
                             ],
