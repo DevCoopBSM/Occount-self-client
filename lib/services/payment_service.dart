@@ -72,17 +72,23 @@ class PaymentService {
   /// 1. POST /orders 로 주문 생성만 수행
   /// 2. userCode, userName 파라미터 제거 (토큰 기반 인증)
   /// 3. 성공 시 주문 완료로 처리
+  /// 4. 게스트 모드에서는 인증 없이 주문 생성
   Future<PaymentResponse> executePayment({
     required List<CartItem> items,
     required int userPoint,
+    bool isGuestMode = false,
   }) async {
     try {
       _logger.info('💰 주문 생성 API 요청 시작');
 
-      // 🔍 디버깅: 토큰 확인
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('accessToken');
-      _logger.info('🔑 [ORDER API] 저장된 전체 토큰: $token');
+      // 🔍 디버깅: 토큰 확인 (게스트 모드가 아닌 경우에만)
+      if (!isGuestMode) {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('accessToken');
+        _logger.info('🔑 [ORDER API] 저장된 전체 토큰: $token');
+      } else {
+        _logger.info('👤 [ORDER API] 게스트 모드로 주문 생성');
+      }
 
       // 주문 생성
       final orderRequest = OrderRequest(
@@ -112,7 +118,7 @@ class PaymentService {
           _logger.info('📥 [ORDER API] 응답 성공: $json');
           return json ?? {}; // 빈 응답 처리
         },
-        requiresAuth: true,
+        requiresAuth: !isGuestMode,
       );
 
       // 🔍 디버깅: 응답 상태 로그

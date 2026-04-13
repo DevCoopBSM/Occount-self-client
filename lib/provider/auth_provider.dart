@@ -14,6 +14,7 @@ class AuthProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   bool _isLoggedIn = false;
+  bool _isGuestMode = false;
   final List<CartItem> _cartItems = [];
 
   final UserInfo _emptyUserInfo = UserInfo(
@@ -36,6 +37,7 @@ class AuthProvider with ChangeNotifier {
   String? get error => _error;
   UserInfo get userInfo => _userInfo;
   bool get isLoggedIn => _isLoggedIn;
+  bool get isGuestMode => _isGuestMode;
   List<CartItem> get cartItems => _cartItems;
 
   Future<LoginResult> login(String codeNumber, String pin) async {
@@ -154,8 +156,21 @@ class AuthProvider with ChangeNotifier {
     _isLoading = false;
     _error = null;
     _isLoggedIn = false;
+    _isGuestMode = false;
     _userInfo = _emptyUserInfo;
     _cartItems.clear();
+    notifyListeners();
+  }
+
+  void enableGuestMode() {
+    _isGuestMode = true;
+    _isLoggedIn = false;
+    _userInfo = UserInfo(
+      userCode: 'GUEST',
+      userName: '게스트',
+      userNumber: '',
+      userPoint: 0,
+    );
     notifyListeners();
   }
 
