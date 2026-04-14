@@ -42,14 +42,15 @@ Future<void> main() async {
 
   final apiConfig = ApiConfig();
   final client = http.Client();
-  final apiClient = ApiClient(client: client, apiConfig: apiConfig);
+  final kioskConfigService = KioskConfigService();
+  final apiClient = ApiClient(client: client, apiConfig: apiConfig, kioskConfigService: kioskConfigService);
 
 
   final serviceProviders = [
     Provider<ApiClient>(create: (_) => apiClient),
     Provider<AuthService>(create: (_) => AuthService(apiClient)),
     Provider<ItemService>(create: (_) => ItemService(apiClient)),
-    Provider<KioskConfigService>(create: (_) => KioskConfigService()),
+    Provider<KioskConfigService>(create: (_) => kioskConfigService),
     Provider<PaymentService>(create: (context) => PaymentService(apiClient, context.read<KioskConfigService>())),
     Provider<CategoryService>(
         create: (_) => CategoryService(apiClient: apiClient)),
