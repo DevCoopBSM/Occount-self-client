@@ -103,7 +103,18 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+
+      // 키오스크 ID는 보존하고 인증 관련 데이터만 선택적으로 삭제
+      final kioskId = prefs.getString('kiosk_id');
+
+      // 인증 관련 키들만 삭제 (키오스크 ID는 보존)
+      await prefs.remove('accessToken');
+      await prefs.remove('userCode');
+      await prefs.remove('userName');
+      await prefs.remove('userPoint');
+      await prefs.remove('userNumber');
+
+      _logger.info('🏪 [AUTH] 로그아웃 완료 - 키오스크 ID 보존: ${kioskId ?? "NULL"}');
       resetState();
     } catch (e) {
       _logger.severe('Error during logout: $e');

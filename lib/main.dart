@@ -16,12 +16,13 @@ import 'services/auth_service.dart';
 import 'api/api_client.dart';
 import 'services/item_service.dart';
 import 'ui/home/home.dart';
-import 'ui/login/barcode_scan_page.dart';
 import 'ui/login/pin_page.dart';
 import 'services/category_service.dart';
 import 'provider/category_provider.dart';
 import 'services/charge_service.dart';
+import 'services/kiosk_config_service.dart';
 import 'ui/payments/payment_page.dart';
+import 'ui/setup/kiosk_setup_checker.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -48,7 +49,8 @@ Future<void> main() async {
     Provider<ApiClient>(create: (_) => apiClient),
     Provider<AuthService>(create: (_) => AuthService(apiClient)),
     Provider<ItemService>(create: (_) => ItemService(apiClient)),
-    Provider<PaymentService>(create: (_) => PaymentService(apiClient)),
+    Provider<KioskConfigService>(create: (_) => KioskConfigService()),
+    Provider<PaymentService>(create: (context) => PaymentService(apiClient, context.read<KioskConfigService>())),
     Provider<CategoryService>(
         create: (_) => CategoryService(apiClient: apiClient)),
     Provider<ChargeService>(create: (_) => ChargeService()),
@@ -111,7 +113,7 @@ Future<void> main() async {
                   if (authProvider.isLoggedIn || authProvider.isGuestMode) {
                     return const Home();
                   } else {
-                    return const BarcodeScanPage();
+                    return const KioskSetupChecker();
                   }
                 },
               ),

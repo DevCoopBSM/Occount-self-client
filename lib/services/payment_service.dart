@@ -8,13 +8,15 @@ import '../exception/payment_exception.dart';
 import '../exception/api_exception.dart';
 import '../models/order_request.dart';
 import '../models/cart_item.dart';
+import 'kiosk_config_service.dart';
 
 class PaymentService {
   final ApiClient _apiClient;
+  final KioskConfigService _kioskConfigService;
   final Logger _logger = Logger('PaymentService');
   List<ItemResponse>? _cachedItems;
 
-  PaymentService(this._apiClient);
+  PaymentService(this._apiClient, this._kioskConfigService);
 
   Future<ItemResponse> getItemByCode(String itemCode) async {
     try {
@@ -90,6 +92,10 @@ class PaymentService {
         _logger.info('👤 [ORDER API] 게스트 모드로 주문 생성');
       }
 
+      // 키오스크 ID 조회
+      final kioskId = await _kioskConfigService.getKioskId();
+      _logger.info('🏪 [ORDER API] 키오스크 ID: $kioskId');
+
       // 주문 생성
       final orderRequest = OrderRequest(
         orderInfos: items
@@ -98,32 +104,52 @@ class PaymentService {
                   orderQuantity: item.quantity,
                 ))
             .toList(),
+        kioskId: kioskId,
       );
 
-      // 🔍 디버깅: 요청 내용 로그
+      // 🔍 디버깅: 요청 내용 상세 로그
+      final requestBody = orderRequest.toJson();
+      _logger.info('📤 [ORDER API] ========== 주문 요청 시작 ==========');
       _logger.info('📤 [ORDER API] 요청 URL: ${ApiEndpoints.createOrder}');
-      _logger.info('📤 [ORDER API] 요청 Body: ${orderRequest.toJson()}');
+      _logger.info('📤 [ORDER API] 키오스크 ID: ${kioskId ?? "NULL"}');
+      _logger.info('📤 [ORDER API] 게스트 모드: $isGuestMode');
+      _logger.info('📤 [ORDER API] 인증 필요: ${!isGuestMode}');
+      _logger.info('📤 [ORDER API] 전체 요청 Body: $requestBody');
       _logger.info('📤 [ORDER API] 상품 개수: ${items.length}');
+
+      // 각 상품 상세 정보
       for (int i = 0; i < items.length; i++) {
         final item = items[i];
-        _logger.info('📤 [ORDER API] 상품[$i]: ID=${item.itemId}, 이름="${item.itemName}", 수량=${item.quantity}, 가격=${item.itemPrice}');
+        _logger.info('📤 [ORDER API] 상품[$i]: ID=${item.itemId}, 코드="${item.itemCode}", 이름="${item.itemName}", 수량=${item.quantity}, 가격=${item.itemPrice}, 카테고리="${item.itemCategory}"');
       }
+
+      // 총 금액 계산
+      final totalAmount = items.fold<int>(0, (sum, item) => sum + (item.itemPrice * item.quantity));
+      _logger.info('📤 [ORDER API] 총 주문 금액: $totalAmount원');
+      _logger.info('📤 [ORDER API] ========================================');
 
       final response = await _apiClient.post(
         ApiEndpoints.createOrder,
         orderRequest.toJson(),
         // POST /orders 성공 시 응답 body 없음(200 OK)
         (json) {
-          // 🔍 디버깅: 응답 내용 로그
-          _logger.info('📥 [ORDER API] 응답 성공: $json');
+          // 🔍 디버깅: 응답 내용 상세 로그
+          _logger.info('📥 [ORDER API] ========== 주문 응답 수신 ==========');
+          _logger.info('📥 [ORDER API] 응답 성공 (HTTP 200 OK)');
+          _logger.info('📥 [ORDER API] 응답 Body: ${json ?? "NULL/EMPTY"}');
+          _logger.info('📥 [ORDER API] 응답 타입: ${json.runtimeType}');
+          _logger.info('📥 [ORDER API] ======================================');
           return json ?? {}; // 빈 응답 처리
         },
         requiresAuth: !isGuestMode,
       );
 
-      // 🔍 디버깅: 응답 상태 로그
-      _logger.info('📥 [ORDER API] 최종 응답: $response');
-      _logger.info('✅ 주문이 정상적으로 처리되었습니다');
+      // 🔍 디버깅: 최종 처리 결과 로그
+      _logger.info('✅ [ORDER API] ========== 주문 처리 완료 ==========');
+      _logger.info('✅ [ORDER API] 최종 응답 데이터: $response');
+      _logger.info('✅ [ORDER API] 주문이 정상적으로 처리되었습니다');
+      _logger.info('✅ [ORDER API] 키오스크 ID "${kioskId ?? "NULL"}"로 주문 전송 완료');
+      _logger.info('✅ [ORDER API] =====================================');
 
       // 성공 응답 생성
       return PaymentResponse(

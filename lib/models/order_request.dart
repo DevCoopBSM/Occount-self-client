@@ -1,13 +1,22 @@
 // 명세서: POST /orders — 결제 실행 전 반드시 주문 생성 필요
-// 요청 구조: { "orderInfos": [{ "itemId": 1, "orderQuantity": 2 }] }
+// 요청 구조: { "orderInfos": [{ "itemId": 1, "orderQuantity": 2 }], "kioskId": "KIOSK_001" }
 class OrderRequest {
   final List<OrderItem> orderInfos;
+  final String? kioskId;
 
-  OrderRequest({required this.orderInfos});
+  OrderRequest({required this.orderInfos, this.kioskId});
 
-  Map<String, dynamic> toJson() => {
-        'orderInfos': orderInfos.map((e) => e.toJson()).toList(),
-      };
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> json = {
+      'orderInfos': orderInfos.map((e) => e.toJson()).toList(),
+    };
+
+    if (kioskId != null && kioskId!.isNotEmpty) {
+      json['kioskId'] = kioskId!;
+    }
+
+    return json;
+  }
 }
 
 class OrderItem {
