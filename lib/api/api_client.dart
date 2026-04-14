@@ -4,17 +4,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
 import 'api_config.dart';
 import '../exception/api_exception.dart';
+import '../services/kiosk_config_service.dart';
 class ApiClient {
   final http.Client client;
   final ApiConfig apiConfig;
+  final KioskConfigService _kioskConfigService;
   final Logger _logger = Logger('ApiClient');
 
   ApiClient({
     required this.client,
     required this.apiConfig,
-  });
+    required KioskConfigService kioskConfigService,
+  }) : _kioskConfigService = kioskConfigService;
 
-  Future<Map<String, String>> _getHeaders({bool requiresAuth = true}) async {
+  Future<Map<String, String>> _getHeaders({bool requiresAuth = true, bool includeKioskId = false}) async {
     final headers = {
       'Content-Type': 'application/json',
     };
@@ -24,6 +27,17 @@ class ApiClient {
       final token = prefs.getString('accessToken');
       if (token != null) {
         headers['Authorization'] = 'Bearer $token';
+      }
+    }
+
+    // 주문 관련 요청에 키오스크 ID 헤더 추가
+    if (includeKioskId) {
+      final kioskId = await _kioskConfigService.getKioskId();
+      if (kioskId != null && kioskId.isNotEmpty) {
+        headers['X-Kiosk-Id'] = kioskId;
+        _logger.info('🏪 X-Kiosk-Id 헤더 추가: $kioskId');
+      } else {
+        _logger.warning('⚠️ 키오스크 ID가 설정되지 않음 - X-Kiosk-Id 헤더 누락');
       }
     }
 
@@ -80,7 +94,9 @@ class ApiClient {
     try {
       final uri = Uri.parse('${apiConfig.API_HOST}$endpoint');
 
-      final headers = await _getHeaders(requiresAuth: requiresAuth);
+      // 주문 관련 엔드포인트인지 확인
+      final isOrderEndpoint = endpoint == '/orders' || endpoint == '/payments/execute';
+      final headers = await _getHeaders(requiresAuth: requiresAuth, includeKioskId: isOrderEndpoint);
 
       // 🔍 디버깅: 실제 HTTP 요청 로그
       _logger.info('🚀 [HTTP POST] URL: $uri');
@@ -204,7 +220,9 @@ class ApiClient {
     try {
       final url = Uri.parse('${apiConfig.API_HOST}$path');
 
-      final headers = await _getHeaders();
+      // 주문 관련 엔드포인트인지 확인
+      final isOrderEndpoint = path == '/orders' || path == '/payments/execute';
+      final headers = await _getHeaders(includeKioskId: isOrderEndpoint);
 
       final response = await client.put(
         url,
