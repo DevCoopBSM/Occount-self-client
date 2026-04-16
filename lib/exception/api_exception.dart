@@ -9,7 +9,7 @@ enum ApiErrorCode {
   invalidPin(401, 'INVALID_PIN'),
   invalidToken(401, 'INVALID_TOKEN'),
   fetchPointFailed(500, 'FETCH_POINT_FAILED'),
-  tokenExpired(401, 'TOKEN_EXPIRED'),
+  tokenExpired(401, 'EXPIRED_TOKEN'),
   paymentTimeout(408, 'PAYMENT_TIMEOUT'),
   paymentCancelled(400, 'PAYMENT_CANCELLED'),
   conflict(409, 'CONFLICT'),
@@ -50,6 +50,8 @@ class ApiException implements Exception {
         return '상품을 찾을 수 없습니다';
       case 'FETCH_POINT_FAILED':
         return '포인트 조회에 실패했습니다';
+      case 'EXPIRED_TOKEN':
+        return '인증이 만료되었습니다';
       case 'PAYMENT_FAILED':
         return '결제 처리에 실패했습니다';
       case 'NETWORK_ERROR':

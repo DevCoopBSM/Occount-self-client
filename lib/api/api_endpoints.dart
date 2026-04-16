@@ -23,6 +23,12 @@ class ApiEndpoints {
   // POST /orders — KIOSK_TOKEN 필요, 주문 생성 (결제 전 필수)
   static const String createOrder = '/orders';
 
+  // GET /orders/{orderId} — 주문 상태 조회
+  static String getOrderStatus(String orderId) => '/orders/$orderId';
+
+  // POST /orders/{orderId}/cancel — 주문 취소 요청
+  static String cancelOrder(String orderId) => '/orders/$orderId/cancel';
+
   // POST /payments/execute — KIOSK_TOKEN 필요, 결제 실행
   static const String executePayment = '/payments/execute';
 
