@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../provider/payment_provider.dart';
 import '../../_constant/theme/devcoop_colors.dart';
 import '../../_constant/theme/devcoop_text_style.dart';
 import '../../_constant/util/number_format_util.dart';
@@ -26,7 +24,7 @@ class PaymentProcessingDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: true,
+      canPop: false,
       child: Dialog(
         backgroundColor: Colors.white,
         child: Container(

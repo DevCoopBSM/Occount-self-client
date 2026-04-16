@@ -10,6 +10,7 @@ import '../ui/payments/widgets/payment_processing_dialog.dart';
 import '../ui/payments/widgets/payment_result_dialog.dart';
 import 'package:provider/provider.dart';
 import 'auth_provider.dart';
+import '../models/order_status_response.dart';
 import '../models/payment_response.dart';
 import '../exception/payment_exception.dart';
 import '../exception/api_exception.dart';
@@ -26,6 +27,10 @@ class PaymentProvider extends ChangeNotifier {
   final List<NonBarcodeItemResponse> _nonBarcodeItems = [];
   final List<ItemResponse> _allItems = [];
   bool _isProcessingDialogVisible = false;
+  String? _currentOrderId;
+  bool _cancelRequested = false;
+  bool _isCancellationInProgress = false;
+  int _activePaymentFlowId = 0;
 
   PaymentProvider(this._paymentService, this._itemService, this._chargeService);
 
@@ -94,9 +99,13 @@ class PaymentProvider extends ChangeNotifier {
     required BuildContext context,
   }) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final flowId = ++_activePaymentFlowId;
+    final cartSnapshot = authProvider.cartItems
+        .map((item) => item.copyWith())
+        .toList(growable: false);
 
     // 상품이 없는 경우 먼저 체크
-    if (authProvider.cartItems.isEmpty) {
+    if (cartSnapshot.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('상품을 추가해주세요')),
@@ -106,15 +115,20 @@ class PaymentProvider extends ChangeNotifier {
     }
 
     _isProcessingDialogVisible = true;
+    _currentOrderId = null;
+    _cancelRequested = false;
+    _isCancellationInProgress = false;
 
     // 결제 진행 중 모달 표시
     if (context.mounted) {
       showDialog(
         context: context,
-        barrierDismissible: true,
+        barrierDismissible: false,
         builder: (context) {
           final calculation = calculatePayment(
-              authProvider.cartItems, authProvider.userInfo.userPoint);
+            cartSnapshot,
+            authProvider.userInfo.userPoint,
+          );
 
           return PaymentProcessingDialog(
             totalAmount: calculation.totalPrice,
@@ -132,140 +146,73 @@ class PaymentProvider extends ChangeNotifier {
     }
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.cartItems.isEmpty) {
-        // 장바구니가 비어있으면 즉시 진행 중 모달 닫고 에러 메시지 표시
-        _isProcessingDialogVisible = false;
-        if (context.mounted) {
-          Navigator.of(context).pop(); // 진행 중 모달 닫기
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('상품을 추가해주세요')),
-          );
-        }
+      if (cartSnapshot.isEmpty) {
         return;
       }
 
-      // 결제 API 요청
-      // 명세서 변경: userCode/userName 제거, userPoint로 결제 타입 결정
-      final result = await _paymentService.executePayment(
-        items: authProvider.cartItems,
-        userPoint: authProvider.userInfo.userPoint,
+      final createdOrder = await _paymentService.createOrder(
+        items: cartSnapshot,
         isGuestMode: authProvider.isGuestMode,
       );
+      _currentOrderId = createdOrder.orderId;
 
-      // 모달이 이미 닫혔다면 응답 처리하지 않음
-      if (!_isProcessingDialogVisible) {
+      if (!_isSameFlow(flowId)) {
         return;
       }
 
-      // ⏱️ 최소 2초간 결제 진행 모달 표시 (사용자 경험 개선)
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (context.mounted) {
-        Navigator.of(context).pop(); // 진행 중 모달 닫기
-      }
-
-      // 결제 완료 후 장바구니 초기화
-      authProvider.clearCart();
-
-      // 결제 결과 다이얼로그 표시
-      if (context.mounted) {
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => PaymentResultDialog(
-            response: result,
-            isSuccess: result.success,
-            shouldReturnToHome: true,
-          ),
-        );
-
-        if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/',
-            (route) => false,
-          );
+      if (_cancelRequested) {
+        if (!context.mounted) {
+          return;
         }
+        await _cancelCurrentOrder(
+          context: context,
+          authProvider: authProvider,
+          flowId: flowId,
+        );
+        return;
       }
+
+      final finalOrder = await _paymentService.pollOrderStatusUntilFinal(
+        createdOrder.orderId,
+      );
+
+      if (!_isSameFlow(flowId) || _isCancellationInProgress) {
+        return;
+      }
+
+      if (!context.mounted) {
+        return;
+      }
+      await _handleOrderResult(
+        context: context,
+        authProvider: authProvider,
+        orderStatus: finalOrder,
+        cartItems: cartSnapshot,
+      );
     } catch (e) {
       _logger.severe('❌ 결제 처리 실패: $e');
       _logger.severe('❌ 에러 타입: ${e.runtimeType}');
 
       if (e is ApiException) {
-        _logger.severe('❌ [ApiException] 코드: ${e.code.code}, 메시지: ${e.message}');
+        _logger
+            .severe('❌ [ApiException] 코드: ${e.code.code}, 메시지: ${e.message}');
       }
       if (e is PaymentException) {
         _logger.severe('❌ [PaymentException] 코드: ${e.code}, 메시지: ${e.message}');
       }
 
-
-      // 모달이 이미 닫혔다면 에러 처리하지 않음
-      if (!_isProcessingDialogVisible) {
+      if (!_isSameFlow(flowId) || _isCancellationInProgress) {
         return;
       }
 
-      // 에러 발생 시 즉시 진행 중 모달 상태를 false로 변경
-      _isProcessingDialogVisible = false;
-
-      if (context.mounted) {
-        // 결제 진행 중 모달 강제로 닫기
-        try {
-          Navigator.of(context, rootNavigator: true).pop();
-        } catch (e) {
-          // 이미 닫혔거나 닫을 수 없는 경우 무시
-        }
-
-        // 모달이 완전히 닫힐 때까지 잠시 대기
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        String errorMessage;
-        String errorCode = '';
-        bool shouldReturnToHome = false;
-
-        if (e is ApiException) {
-          errorMessage = e.message;
-          errorCode = e.code.code;
-          // 타임아웃이나 결제 실패의 경우 장바구니 유지
-          shouldReturnToHome = ![
-            ApiErrorCode.paymentTimeout,
-            ApiErrorCode.paymentFailed,
-            ApiErrorCode.paymentCancelled,
-          ].contains(e.code);
-        } else if (e is PaymentException) {
-          errorMessage = e.message;
-          errorCode = e.code;
-          shouldReturnToHome =
-              !['PAYMENT_TIMEOUT', 'PAYMENT_FAILED'].contains(e.code);
-        } else {
-          errorMessage = '결제 처리 중 오류가 발생했습니다';
-          shouldReturnToHome = true;
-        }
-
-        if (context.mounted) {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => PaymentResultDialog(
-              errorMessage: errorMessage,
-              errorCode: errorCode,
-              isSuccess: false,
-              shouldReturnToHome: shouldReturnToHome,
-            ),
-          );
-        }
-
-        // 홈으로 돌아가야 하는 경우에만 네비게이션 실행
-        if (shouldReturnToHome && context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/',
-            (route) => false,
-          );
-        }
+      if (!context.mounted) {
+        return;
       }
+      await _handlePaymentError(context: context, error: e);
     } finally {
-      _isProcessingDialogVisible = false;
+      if (_isSameFlow(flowId)) {
+        _resetPaymentFlowState();
+      }
     }
   }
 
@@ -280,7 +227,6 @@ class PaymentProvider extends ChangeNotifier {
     required List<CartItem> items,
     required int userPoint,
   }) async {
-    // 명세서 변경: userCode/userName 제거, userPoint로 결제 타입 결정
     return await _paymentService.executePayment(
       items: items,
       userPoint: userPoint,
@@ -395,14 +341,30 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   Future<void> cancelPayment(BuildContext context) async {
-    try {
-      _isProcessingDialogVisible = false;
+    if (_isCancellationInProgress) {
+      return;
+    }
 
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
+    if (_currentOrderId == null) {
+      _cancelRequested = true;
+      _logger.info('🕒 주문 생성 응답 대기 중 - 생성 완료 후 취소 요청 예정');
+      return;
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    try {
+      await _cancelCurrentOrder(
+        context: context,
+        authProvider: authProvider,
+        flowId: _activePaymentFlowId,
+      );
     } catch (e) {
       _logger.severe('❌ 결제 취소 실패: $e');
+      if (!context.mounted) {
+        return;
+      }
+      await _handlePaymentError(context: context, error: e);
     }
   }
 
@@ -432,6 +394,277 @@ class PaymentProvider extends ChangeNotifier {
 
   Future<void> retryPayment(BuildContext context) async {
     await processPayment(context: context);
+  }
+
+  bool _isSameFlow(int flowId) => _activePaymentFlowId == flowId;
+
+  void _resetPaymentFlowState() {
+    _isProcessingDialogVisible = false;
+    _currentOrderId = null;
+    _cancelRequested = false;
+    _isCancellationInProgress = false;
+  }
+
+  Future<void> _closeProcessingDialog(BuildContext context) async {
+    if (!_isProcessingDialogVisible || !context.mounted) {
+      return;
+    }
+
+    _isProcessingDialogVisible = false;
+
+    try {
+      Navigator.of(context, rootNavigator: true).pop();
+    } catch (_) {
+      // 이미 닫힌 경우 무시
+    }
+
+    await Future.delayed(const Duration(milliseconds: 200));
+  }
+
+  Future<void> _handleOrderResult({
+    required BuildContext context,
+    required AuthProvider authProvider,
+    required OrderStatusResponse orderStatus,
+    required List<CartItem> cartItems,
+  }) async {
+    switch (orderStatus.status) {
+      case OrderStatus.completed:
+        await _handleCompletedOrder(
+          context: context,
+          authProvider: authProvider,
+          cartItems: cartItems,
+        );
+        return;
+      case OrderStatus.failed:
+        throw ApiException.fromErrorCode(
+          ApiErrorCode.paymentFailed,
+          orderStatus.failureReason ?? '결제에 실패했습니다.',
+        );
+      case OrderStatus.cancelled:
+        throw ApiException.fromErrorCode(
+          ApiErrorCode.paymentCancelled,
+          orderStatus.failureReason ?? '주문이 취소되었습니다.',
+        );
+      case OrderStatus.compensationFailed:
+        throw PaymentException(
+          code: 'COMPENSATION_FAILED',
+          message: orderStatus.failureReason ?? '오류가 발생했습니다. 관리자에게 문의하세요.',
+          status: 500,
+        );
+      case OrderStatus.timedOut:
+        throw ApiException.fromErrorCode(
+          ApiErrorCode.paymentTimeout,
+          '처리 시간이 초과되었습니다.',
+        );
+      default:
+        throw ApiException.fromErrorCode(
+          ApiErrorCode.serverError,
+          '결제 상태를 확인하는 중 오류가 발생했습니다.',
+        );
+    }
+  }
+
+  Future<void> _handleCompletedOrder({
+    required BuildContext context,
+    required AuthProvider authProvider,
+    required List<CartItem> cartItems,
+  }) async {
+    final calculation =
+        calculatePayment(cartItems, authProvider.userInfo.userPoint);
+
+    if (!authProvider.isGuestMode) {
+      try {
+        await authProvider.updatePoint();
+      } catch (e) {
+        _logger.warning('⚠️ 결제 후 포인트 갱신 실패: $e');
+      }
+    }
+
+    final result = PaymentResponse(
+      success: true,
+      message: '주문이 정상처리되었습니다',
+      type: calculation.expectedCardAmount > 0 ? 'MIXED' : 'POINT',
+      chargedAmount: calculation.expectedCardAmount,
+      remainingPoints: authProvider.userInfo.userPoint,
+      totalAmount: calculation.totalPrice,
+      pointsUsed: calculation.expectedPoints,
+    );
+
+    await Future.delayed(const Duration(seconds: 2));
+    if (!context.mounted) {
+      return;
+    }
+    await _closeProcessingDialog(context);
+
+    authProvider.clearCart();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PaymentResultDialog(
+        response: result,
+        isSuccess: true,
+        shouldReturnToHome: true,
+      ),
+    );
+
+    if (context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/',
+        (route) => false,
+      );
+    }
+  }
+
+  Future<void> _cancelCurrentOrder({
+    required BuildContext context,
+    required AuthProvider authProvider,
+    required int flowId,
+  }) async {
+    final orderId = _currentOrderId;
+    if (orderId == null) {
+      _cancelRequested = true;
+      return;
+    }
+
+    _isCancellationInProgress = true;
+
+    OrderStatusResponse cancelResponse;
+    try {
+      cancelResponse = await _paymentService.cancelOrder(
+        orderId: orderId,
+        isGuestMode: authProvider.isGuestMode,
+      );
+    } on ApiException catch (e) {
+      if (e.code != ApiErrorCode.conflict) {
+        rethrow;
+      }
+
+      _logger.info('ℹ️ 취소 요청 중 상태 경합 발생 - 최종 주문 상태 재조회');
+      cancelResponse = await _paymentService.getOrderStatus(orderId);
+    }
+
+    final finalStatus = cancelResponse.isTerminal
+        ? cancelResponse
+        : await _paymentService.pollOrderStatusUntilFinal(orderId);
+
+    if (!_isSameFlow(flowId)) {
+      return;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+    await _closeProcessingDialog(context);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    if (finalStatus.status == OrderStatus.completed) {
+      await _handleCompletedOrder(
+        context: context,
+        authProvider: authProvider,
+        cartItems: authProvider.cartItems
+            .map((item) => item.copyWith())
+            .toList(growable: false),
+      );
+      return;
+    }
+
+    final isCancelled = finalStatus.status == OrderStatus.cancelled;
+    final isCompensationFailed =
+        finalStatus.status == OrderStatus.compensationFailed;
+    final isTimedOut = finalStatus.status == OrderStatus.timedOut;
+    final errorMessage = isCancelled
+        ? (finalStatus.failureReason ?? '주문이 취소되었습니다.')
+        : isCompensationFailed
+            ? (finalStatus.failureReason ?? '오류가 발생했습니다. 관리자에게 문의하세요.')
+            : isTimedOut
+                ? '처리 시간이 초과되었습니다.'
+                : (finalStatus.failureReason ?? '결제에 실패했습니다.');
+    final errorCode = isCancelled
+        ? ApiErrorCode.paymentCancelled.code
+        : isCompensationFailed
+            ? 'COMPENSATION_FAILED'
+            : isTimedOut
+                ? ApiErrorCode.paymentTimeout.code
+                : ApiErrorCode.paymentFailed.code;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PaymentResultDialog(
+        errorMessage: errorMessage,
+        errorCode: errorCode,
+        isSuccess: false,
+        shouldReturnToHome: true,
+      ),
+    );
+
+    if (context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/',
+        (route) => false,
+      );
+    }
+  }
+
+  Future<void> _handlePaymentError({
+    required BuildContext context,
+    required Object error,
+  }) async {
+    await _closeProcessingDialog(context);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    String errorMessage;
+    String errorCode = '';
+    bool shouldReturnToHome = false;
+
+    if (error is ApiException) {
+      errorMessage = error.message;
+      errorCode = error.code.code;
+      shouldReturnToHome = ![
+        ApiErrorCode.paymentTimeout,
+        ApiErrorCode.paymentFailed,
+      ].contains(error.code);
+    } else if (error is PaymentException) {
+      errorMessage = error.message;
+      errorCode = error.code;
+      shouldReturnToHome =
+          !['PAYMENT_TIMEOUT', 'PAYMENT_FAILED'].contains(error.code);
+    } else {
+      errorMessage = '결제 처리 중 오류가 발생했습니다';
+      shouldReturnToHome = true;
+    }
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PaymentResultDialog(
+        errorMessage: errorMessage,
+        errorCode: errorCode,
+        isSuccess: false,
+        shouldReturnToHome: shouldReturnToHome,
+      ),
+    );
+
+    if (shouldReturnToHome && context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/',
+        (route) => false,
+      );
+    }
   }
 }
 
