@@ -14,9 +14,9 @@ import '../models/cart_item.dart';
 import 'kiosk_config_service.dart';
 
 class PaymentService {
-  static const Duration orderPollingInterval = Duration(seconds: 1);
+  static const Duration orderPollingInterval = Duration(seconds: 3);
   static const Duration orderPollingTimeout = Duration(seconds: 30);
-  static const Duration initialOrderPollingDelay = Duration(seconds: 5);
+  static const Duration initialOrderPollingDelay = Duration(seconds: 1);
 
   final ApiClient _apiClient;
   final KioskConfigService _kioskConfigService;
