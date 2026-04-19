@@ -36,10 +36,33 @@ class _PaymentResultDialogState extends State<PaymentResultDialog> {
   int remainingSeconds = _totalSeconds;
   bool _isFirstBuild = true;
 
+  bool get _isCancelledState =>
+      !widget.isSuccess && widget.errorCode == 'PAYMENT_CANCELLED';
+
+  String get _dialogTitle {
+    if (_isCancelledState) {
+      return '주문 취소';
+    }
+    return widget.isSuccess ? '결제 완료' : '결제 실패';
+  }
+
+  Color get _dialogColor {
+    if (_isCancelledState) {
+      return Colors.orange;
+    }
+    return widget.isSuccess ? Colors.green : Colors.red;
+  }
+
   String get resultMessage {
     if (!widget.isSuccess) {
       if (widget.errorCode == 'PAYMENT_TIMEOUT') {
         return '결제 시간이 초과되었습니다.\n다시 시도해주세요.';
+      }
+      if (widget.errorCode == 'PAYMENT_CANCELLED') {
+        return widget.errorMessage ?? '주문이 취소되었습니다.';
+      }
+      if (widget.errorCode == 'COMPENSATION_FAILED') {
+        return widget.errorMessage ?? '오류가 발생했습니다. 관리자에게 문의하세요.';
       }
       return widget.errorMessage ?? '결제 처리 중 오류가 발생했습니다';
     }
@@ -99,6 +122,11 @@ class _PaymentResultDialogState extends State<PaymentResultDialog> {
   void _handleTimeout() {
     if (!mounted) return;
 
+    if (!widget.shouldReturnToHome) {
+      Navigator.of(context).pop();
+      return;
+    }
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     authProvider.resetState();
     authProvider.logout();
@@ -127,18 +155,22 @@ class _PaymentResultDialogState extends State<PaymentResultDialog> {
 
     return AlertDialog(
       title: Text(
-        widget.isSuccess ? '결제 완료' : '결제 실패',
+        _dialogTitle,
         style: DevCoopTextStyle.bold_30.copyWith(
-          color: widget.isSuccess ? Colors.green : Colors.red,
+          color: _dialogColor,
         ),
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            widget.isSuccess ? Icons.check_circle : Icons.error,
+            widget.isSuccess
+                ? Icons.check_circle
+                : _isCancelledState
+                    ? Icons.cancel
+                    : Icons.error,
             size: 48,
-            color: widget.isSuccess ? Colors.green : Colors.red,
+            color: _dialogColor,
           ),
           const SizedBox(height: 16),
           Text(
@@ -156,7 +188,9 @@ class _PaymentResultDialogState extends State<PaymentResultDialog> {
           Padding(
             padding: const EdgeInsets.only(top: 8.0),
             child: Text(
-              '$remainingSeconds초 후 초기화면으로 이동합니다',
+              widget.shouldReturnToHome
+                  ? '$remainingSeconds초 후 초기화면으로 이동합니다'
+                  : '$remainingSeconds초 후 장바구니로 돌아갑니다',
               style: DevCoopTextStyle.medium_20,
             ),
           ),

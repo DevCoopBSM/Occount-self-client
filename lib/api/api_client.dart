@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'api_config.dart';
 import '../exception/api_exception.dart';
 import '../services/kiosk_config_service.dart';
+
 class ApiClient {
   final http.Client client;
   final ApiConfig apiConfig;
@@ -17,7 +18,8 @@ class ApiClient {
     required KioskConfigService kioskConfigService,
   }) : _kioskConfigService = kioskConfigService;
 
-  Future<Map<String, String>> _getHeaders({bool requiresAuth = true, bool includeKioskId = false}) async {
+  Future<Map<String, String>> _getHeaders(
+      {bool requiresAuth = true, bool includeKioskId = false}) async {
     final headers = {
       'Content-Type': 'application/json',
     };
@@ -30,7 +32,7 @@ class ApiClient {
       }
     }
 
-    // 주문 관련 요청에 키오스크 ID 헤더 추가
+    // 필요한 경우에만 명시적으로 키오스크 ID 헤더를 추가한다.
     if (includeKioskId) {
       final kioskId = await _kioskConfigService.getKioskId();
       if (kioskId != null && kioskId.isNotEmpty) {
@@ -50,11 +52,15 @@ class ApiClient {
     Map<String, dynamic>? queryParams,
     // 명세서상 /items/** 는 인증 불필요. 인증이 필요 없는 공개 API는 false 전달
     bool requiresAuth = true,
+    bool includeKioskId = false,
   }) async {
     try {
       final uri = Uri.parse('${apiConfig.API_HOST}$endpoint')
           .replace(queryParameters: queryParams);
-      final headers = await _getHeaders(requiresAuth: requiresAuth);
+      final headers = await _getHeaders(
+        requiresAuth: requiresAuth,
+        includeKioskId: includeKioskId,
+      );
 
       final response = await client.get(
         uri,
@@ -74,7 +80,8 @@ class ApiClient {
 
       throw ApiException(
         // 명세서: 에러 코드가 json['message']에 담김 (구 API의 json['code']와 다름)
-        code: _getErrorCodeFromStatus(response.statusCode, errorData['message']),
+        code:
+            _getErrorCodeFromStatus(response.statusCode, errorData['message']),
         message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
         status: errorData['status'] ?? 'FAIL',
       );
@@ -90,32 +97,39 @@ class ApiClient {
     dynamic data,
     T Function(dynamic) parser, {
     bool requiresAuth = true,
+    bool includeKioskId = false,
+    List<int> successStatusCodes = const [200],
   }) async {
     try {
       final uri = Uri.parse('${apiConfig.API_HOST}$endpoint');
 
-      // 주문 관련 엔드포인트인지 확인
-      final isOrderEndpoint = endpoint == '/orders' || endpoint == '/payments/execute';
-      final headers = await _getHeaders(requiresAuth: requiresAuth, includeKioskId: isOrderEndpoint);
+      final headers = await _getHeaders(
+        requiresAuth: requiresAuth,
+        includeKioskId: includeKioskId,
+      );
 
       // 🔍 디버깅: 실제 HTTP 요청 로그
       _logger.info('🚀 [HTTP POST] URL: $uri');
       _logger.info('🚀 [HTTP POST] Headers: $headers');
       _logger.info('🚀 [HTTP POST] Body: ${jsonEncode(data)}');
 
-      final response = await client.post(
-        uri,
-        headers: headers,
-        body: jsonEncode(data),
-      );
+      final response = data == null
+          ? await client.post(
+              uri,
+              headers: headers,
+            )
+          : await client.post(
+              uri,
+              headers: headers,
+              body: jsonEncode(data),
+            );
 
       // 🔍 디버깅: 실제 HTTP 응답 로그
       _logger.info('📥 [HTTP RESPONSE] Status: ${response.statusCode}');
       _logger.info('📥 [HTTP RESPONSE] Headers: ${response.headers}');
       _logger.info('📥 [HTTP RESPONSE] Body: ${response.body}');
 
-
-      if (response.statusCode == 200) {
+      if (successStatusCodes.contains(response.statusCode)) {
         // 빈 응답 처리
         if (response.body.isEmpty) {
           return parser(null);
@@ -169,7 +183,8 @@ class ApiClient {
       if (response.statusCode == 201) {
         // 토큰은 Authorization 헤더에 "Bearer <token>" 형태로 담김
         // HTTP 헤더는 case-insensitive이므로 소문자와 대문자 모두 확인
-        final authHeader = response.headers['authorization'] ?? response.headers['Authorization'];
+        final authHeader = response.headers['authorization'] ??
+            response.headers['Authorization'];
 
         _logger.info('🔍 응답 헤더 확인: ${response.headers}');
         _logger.info('🔑 Authorization 헤더: $authHeader');
@@ -246,7 +261,8 @@ class ApiClient {
 
       throw ApiException(
         // 명세서: 에러 코드가 json['message']에 담김 (구 API의 json['code']와 다름)
-        code: _getErrorCodeFromStatus(response.statusCode, errorData['message']),
+        code:
+            _getErrorCodeFromStatus(response.statusCode, errorData['message']),
         message: errorData['message'] ?? '요청 실패: ${response.statusCode}',
         status: errorData['status'] ?? 'FAIL',
       );
@@ -293,7 +309,7 @@ class ApiClient {
       case 408:
         return ApiErrorCode.paymentTimeout;
       case 409:
-        return ApiErrorCode.transactionInProgress;
+        return ApiErrorCode.conflict;
       case 500:
         return ApiErrorCode.serverError;
       default:
