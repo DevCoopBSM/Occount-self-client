@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../../provider/payment_provider.dart';
 import '../../../provider/auth_provider.dart';
 import '../../_constant/component/button.dart';
-import 'charge_dialog.dart';
 
 class PaymentActionButtons extends StatelessWidget {
   const PaymentActionButtons({Key? key}) : super(key: key);
@@ -57,19 +56,6 @@ class PaymentActionButtons extends StatelessWidget {
               text: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.account_balance_wallet, weight: 20),
-                  Text("셀프 충전",
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold))
-                ],
-              ),
-              onTap: () => _showChargeDialog(context),
-            ),
-            const SizedBox(width: 20),
-            mainTextButton(
-              text: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
                   Icon(Icons.payment, weight: 20),
                   Text("결제",
                       style:
@@ -93,13 +79,6 @@ class PaymentActionButtons extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-
-  void _showChargeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const ChargeDialog(),
     );
   }
 }
