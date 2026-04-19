@@ -52,11 +52,15 @@ class ApiClient {
     Map<String, dynamic>? queryParams,
     // 명세서상 /items/** 는 인증 불필요. 인증이 필요 없는 공개 API는 false 전달
     bool requiresAuth = true,
+    bool includeKioskId = false,
   }) async {
     try {
       final uri = Uri.parse('${apiConfig.API_HOST}$endpoint')
           .replace(queryParameters: queryParams);
-      final headers = await _getHeaders(requiresAuth: requiresAuth);
+      final headers = await _getHeaders(
+        requiresAuth: requiresAuth,
+        includeKioskId: includeKioskId,
+      );
 
       final response = await client.get(
         uri,
@@ -93,12 +97,16 @@ class ApiClient {
     dynamic data,
     T Function(dynamic) parser, {
     bool requiresAuth = true,
+    bool includeKioskId = false,
     List<int> successStatusCodes = const [200],
   }) async {
     try {
       final uri = Uri.parse('${apiConfig.API_HOST}$endpoint');
 
-      final headers = await _getHeaders(requiresAuth: requiresAuth);
+      final headers = await _getHeaders(
+        requiresAuth: requiresAuth,
+        includeKioskId: includeKioskId,
+      );
 
       // 🔍 디버깅: 실제 HTTP 요청 로그
       _logger.info('🚀 [HTTP POST] URL: $uri');

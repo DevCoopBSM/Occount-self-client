@@ -174,6 +174,7 @@ class PaymentProvider extends ChangeNotifier {
 
       final finalOrder = await _paymentService.pollOrderStatusUntilFinal(
         createdOrder.orderId,
+        initialDelay: PaymentService.initialOrderPollingDelay,
       );
 
       if (!_isSameFlow(flowId) || _isCancellationInProgress) {

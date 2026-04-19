@@ -39,7 +39,7 @@ void main() {
           expect(request.method, 'POST');
           expect(request.url.toString(), 'http://localhost/orders');
           expect(request.headers.containsKey('Authorization'), isFalse);
-          expect(request.headers.containsKey('X-Kiosk-Id'), isFalse);
+          expect(request.headers['X-Kiosk-Id'], 'KIOSK-001');
 
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['kioskId'], 'KIOSK-001');
@@ -89,6 +89,7 @@ void main() {
       final service = _buildService(
         MockClient((request) async {
           expect(request.headers['Authorization'], 'Bearer token-123');
+          expect(request.headers['X-Kiosk-Id'], 'KIOSK-001');
 
           return http.Response(
             jsonEncode({
@@ -124,11 +125,14 @@ void main() {
     });
 
     test('getOrderStatus polls public endpoint without auth header', () async {
+      await _setPrefs(kioskId: 'KIOSK-001');
+
       final service = _buildService(
         MockClient((request) async {
           expect(request.method, 'GET');
           expect(request.url.toString(), 'http://localhost/orders/order-3');
           expect(request.headers.containsKey('Authorization'), isFalse);
+          expect(request.headers['X-Kiosk-Id'], 'KIOSK-001');
 
           return http.Response(
             jsonEncode({
@@ -218,6 +222,8 @@ void main() {
 
     test('cancelOrder posts to cancel endpoint without auth for guest mode',
         () async {
+      await _setPrefs(kioskId: 'KIOSK-001');
+
       late http.Request capturedRequest;
       final service = _buildService(
         MockClient((request) async {
@@ -246,6 +252,7 @@ void main() {
         'http://localhost/orders/order-6/cancel',
       );
       expect(capturedRequest.headers.containsKey('Authorization'), isFalse);
+      expect(capturedRequest.headers['X-Kiosk-Id'], 'KIOSK-001');
       expect(response.status, OrderStatus.cancelRequested);
       expect(response.failureReason, '사용자에 의해 주문이 취소되었습니다');
     });

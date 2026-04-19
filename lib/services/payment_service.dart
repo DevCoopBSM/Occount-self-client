@@ -16,6 +16,7 @@ import 'kiosk_config_service.dart';
 class PaymentService {
   static const Duration orderPollingInterval = Duration(seconds: 1);
   static const Duration orderPollingTimeout = Duration(seconds: 30);
+  static const Duration initialOrderPollingDelay = Duration(seconds: 5);
 
   final ApiClient _apiClient;
   final KioskConfigService _kioskConfigService;
@@ -151,6 +152,7 @@ class PaymentService {
           return OrderStatusResponse.fromJson(json as Map<String, dynamic>);
         },
         requiresAuth: !isGuestMode,
+        includeKioskId: true,
         successStatusCodes: const [202],
       );
 
@@ -187,6 +189,7 @@ class PaymentService {
         ApiEndpoints.getOrderStatus(orderId),
         (json) => OrderStatusResponse.fromJson(json as Map<String, dynamic>),
         requiresAuth: false,
+        includeKioskId: true,
       );
     } catch (e) {
       _logger.severe('❌ 주문 상태 조회 실패: $e');
@@ -198,7 +201,13 @@ class PaymentService {
     String orderId, {
     Duration interval = orderPollingInterval,
     Duration timeout = orderPollingTimeout,
+    Duration initialDelay = Duration.zero,
   }) async {
+    if (initialDelay > Duration.zero) {
+      _logger.info('⏳ 첫 주문 상태 조회 대기 - orderId: $orderId, delay: $initialDelay');
+      await Future.delayed(initialDelay);
+    }
+
     final deadline = DateTime.now().add(timeout);
     var currentStatus = await getOrderStatus(orderId);
 
@@ -232,6 +241,7 @@ class PaymentService {
         null,
         (json) => OrderStatusResponse.fromJson(json as Map<String, dynamic>),
         requiresAuth: !isGuestMode,
+        includeKioskId: true,
       );
     } catch (e) {
       _logger.severe('❌ 주문 취소 요청 실패: $e');
@@ -248,7 +258,10 @@ class PaymentService {
       items: items,
       isGuestMode: isGuestMode,
     );
-    final finalStatus = await pollOrderStatusUntilFinal(createdOrder.orderId);
+    final finalStatus = await pollOrderStatusUntilFinal(
+      createdOrder.orderId,
+      initialDelay: initialOrderPollingDelay,
+    );
 
     if (finalStatus.status != OrderStatus.completed) {
       throw ApiException.fromErrorCode(

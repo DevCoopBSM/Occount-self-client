@@ -32,6 +32,6 @@ class ApiEndpoints {
   // POST /payments/execute — KIOSK_TOKEN 필요, 결제 실행
   static const String executePayment = '/payments/execute';
 
-  // [사용 중단] GET /wallet/point — 포인트는 이제 /users/pre-order-info에서 조회
-  // static const String getPoint = '/wallet/point';
+  // GET /wallet/point — KIOSK_TOKEN 필요, 현재 포인트 조회
+  static const String getPoint = '/wallet/point';
 }
