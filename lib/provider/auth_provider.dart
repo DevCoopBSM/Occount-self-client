@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
@@ -7,6 +8,7 @@ import '../models/user_info.dart';
 import '../models/auth_response.dart';
 import '../models/login_result.dart';
 import '../models/cart_item.dart';
+import '../main.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService;
@@ -31,7 +33,13 @@ class AuthProvider with ChangeNotifier {
     userPoint: 0,
   );
 
+  static const int sessionTimeoutSeconds = 300;
+  Timer? _sessionTimer;
+  bool _isSessionExpired = false;
+
   AuthProvider(this._authService);
+
+  bool get isSessionExpired => _isSessionExpired;
 
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -51,8 +59,10 @@ class AuthProvider with ChangeNotifier {
       return LoginResult(success: true);
     } catch (e) {
       _isLoading = false;
+      _logger.severe('❌ login() catch (타입: ${e.runtimeType}): $e');
 
       if (e is ApiException) {
+        _logger.severe('❌ ApiException - code: ${e.code}, message: ${e.message}, status: ${e.status}');
 
         if (e.code.code == 'DEFAULT_PIN_IN_USE') {
           // code.code로 정확한 에러 코드 비교
@@ -87,7 +97,51 @@ class AuthProvider with ChangeNotifier {
     _userInfo = response.userInfo;
     _isLoggedIn = true;
     _isLoading = false;
+    _startSessionTimer();
     notifyListeners();
+  }
+
+  void _startSessionTimer() {
+    _cancelSessionTimer();
+    _isSessionExpired = false;
+    _sessionTimer = Timer(const Duration(seconds: sessionTimeoutSeconds), () {
+      _logger.info('[AUTH] 세션 타이머 만료 ($sessionTimeoutSeconds초)');
+      _isSessionExpired = true;
+      _showSessionExpiredDialog();
+    });
+  }
+
+  void pauseSessionTimer() {
+    _cancelSessionTimer();
+  }
+
+  void _cancelSessionTimer() {
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
+  }
+
+  void _showSessionExpiredDialog() {
+    final context = globalNavigatorKey.currentContext;
+    if (context == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('세션 만료'),
+        content: const Text('결제 제한시간이 지났습니다.\n다시 로그인 해주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              logout();
+              globalNavigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+            },
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
   }
 
   void updateUserPoint(int newPoint) {
@@ -102,6 +156,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> logout() async {
     try {
+      _cancelSessionTimer();
       final prefs = await SharedPreferences.getInstance();
 
       // 키오스크 ID는 보존하고 인증 관련 데이터만 선택적으로 삭제
@@ -164,10 +219,12 @@ class AuthProvider with ChangeNotifier {
   }
 
   void resetState() {
+    _cancelSessionTimer();
     _isLoading = false;
     _error = null;
     _isLoggedIn = false;
     _isGuestMode = false;
+    _isSessionExpired = false;
     _userInfo = _emptyUserInfo;
     _cartItems.clear();
     notifyListeners();

@@ -114,6 +114,8 @@ class PaymentProvider extends ChangeNotifier {
       return;
     }
 
+    authProvider.pauseSessionTimer();
+
     _isProcessingDialogVisible = true;
     _currentOrderId = null;
     _cancelRequested = false;
@@ -211,7 +213,7 @@ class PaymentProvider extends ChangeNotifier {
       }
       await _handlePaymentError(context: context, error: e);
     } finally {
-      if (_isSameFlow(flowId)) {
+      if (_isSameFlow(flowId) && !_isCancellationInProgress) {
         _resetPaymentFlowState();
       }
     }
@@ -366,6 +368,8 @@ class PaymentProvider extends ChangeNotifier {
         return;
       }
       await _handlePaymentError(context: context, error: e);
+    } finally {
+      _resetPaymentFlowState();
     }
   }
 
@@ -604,16 +608,20 @@ class PaymentProvider extends ChangeNotifier {
         errorMessage: errorMessage,
         errorCode: errorCode,
         isSuccess: false,
-        shouldReturnToHome: true,
+        shouldReturnToHome: !isCancelled,
       ),
     );
 
     if (context.mounted) {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/',
-        (route) => false,
-      );
+      if (isCancelled) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/',
+          (route) => false,
+        );
+      }
     }
   }
 

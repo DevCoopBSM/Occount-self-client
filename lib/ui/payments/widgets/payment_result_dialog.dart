@@ -127,6 +127,11 @@ class _PaymentResultDialogState extends State<PaymentResultDialog> {
       return;
     }
 
+    if (_isCancelledState) {
+      Navigator.of(context).pop();
+      return;
+    }
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     authProvider.resetState();
     authProvider.logout();
