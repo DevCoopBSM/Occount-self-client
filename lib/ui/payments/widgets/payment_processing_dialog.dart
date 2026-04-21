@@ -3,7 +3,7 @@ import '../../_constant/theme/devcoop_colors.dart';
 import '../../_constant/theme/devcoop_text_style.dart';
 import '../../_constant/util/number_format_util.dart';
 
-class PaymentProcessingDialog extends StatelessWidget {
+class PaymentProcessingDialog extends StatefulWidget {
   final int totalAmount;
   final int paymentAmount;
   final int cardAmount;
@@ -22,6 +22,14 @@ class PaymentProcessingDialog extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<PaymentProcessingDialog> createState() =>
+      _PaymentProcessingDialogState();
+}
+
+class _PaymentProcessingDialogState extends State<PaymentProcessingDialog> {
+  bool _isCancelPressed = false;
+
+  @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
@@ -34,21 +42,21 @@ class PaymentProcessingDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isChargeOnly
+                widget.isChargeOnly
                     ? '충전 진행 중'
-                    : hasCharge
+                    : widget.hasCharge
                         ? '충전 및 결제 진행 중'
                         : '결제 진행 중',
                 style: DevCoopTextStyle.bold_40.copyWith(
-                  color: isChargeOnly
+                  color: widget.isChargeOnly
                       ? const Color.fromARGB(255, 0, 255, 89)
-                      : hasCharge
+                      : widget.hasCharge
                           ? const Color.fromARGB(255, 0, 0, 255)
                           : DevCoopColors.primary,
                 ),
                 textAlign: TextAlign.center,
               ),
-              if (hasCharge && !isChargeOnly) ...[
+              if (widget.hasCharge && !widget.isChargeOnly) ...[
                 const SizedBox(height: 8),
                 const Text(
                   '충전과 상품결제가 동시에 있으면\n카드결제로만 진행됩니다.',
@@ -71,20 +79,20 @@ class PaymentProcessingDialog extends StatelessWidget {
                   children: [
                     _buildPaymentInfoRow(
                       '총 결제금액',
-                      totalAmount,
+                      widget.totalAmount,
                       DevCoopTextStyle.light_40,
                     ),
                     const SizedBox(height: 16),
                     _buildPaymentInfoRow(
                       '아리페이 결제',
-                      paymentAmount,
+                      widget.paymentAmount,
                       DevCoopTextStyle.medium_30,
                     ),
-                    if (cardAmount > 0) ...[
+                    if (widget.cardAmount > 0) ...[
                       const SizedBox(height: 8),
                       _buildPaymentInfoRow(
                         '카드 결제',
-                        cardAmount,
+                        widget.cardAmount,
                         DevCoopTextStyle.medium_30,
                       ),
                     ],
@@ -99,7 +107,12 @@ class PaymentProcessingDialog extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: onClose,
+                onPressed: _isCancelPressed
+                    ? null
+                    : () {
+                        setState(() => _isCancelPressed = true);
+                        widget.onClose();
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: DevCoopColors.error,
                   foregroundColor: Colors.white,
@@ -108,9 +121,9 @@ class PaymentProcessingDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text(
-                  '결제 취소',
-                  style: TextStyle(fontSize: 18),
+                child: Text(
+                  _isCancelPressed ? '취소 처리 중...' : '결제 취소',
+                  style: const TextStyle(fontSize: 18),
                 ),
               ),
             ],
