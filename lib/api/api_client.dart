@@ -92,6 +92,25 @@ class ApiClient {
     }
   }
 
+  Future<http.StreamedResponse> send(
+    http.BaseRequest request, {
+    bool requiresAuth = true,
+    bool includeKioskId = false,
+  }) async {
+    try {
+      final headers = await _getHeaders(
+        requiresAuth: requiresAuth,
+        includeKioskId: includeKioskId,
+      );
+      request.headers.addAll(headers);
+      return client.send(request);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      _logger.severe('❌ 요청 전송 에러: $e');
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError);
+    }
+  }
+
   Future<T> post<T>(
     String endpoint,
     dynamic data,
@@ -174,11 +193,20 @@ class ApiClient {
 
       // 로그인은 인증 불필요
       final headers = await _getHeaders(requiresAuth: false);
+
+      _logger.info('🚀 [LOGIN POST] URL: $uri');
+      _logger.info('🚀 [LOGIN POST] Request Headers: $headers');
+      _logger.info('🚀 [LOGIN POST] Request Body: ${jsonEncode(data)}');
+
       final response = await client.post(
         uri,
         headers: headers,
         body: jsonEncode(data),
       );
+
+      _logger.info('📥 [LOGIN RESPONSE] Status: ${response.statusCode}');
+      _logger.info('📥 [LOGIN RESPONSE] Response Headers: ${response.headers}');
+      _logger.info('📥 [LOGIN RESPONSE] Response Body: ${response.body}');
 
       if (response.statusCode == 201) {
         // 토큰은 Authorization 헤더에 "Bearer <token>" 형태로 담김
@@ -186,7 +214,6 @@ class ApiClient {
         final authHeader = response.headers['authorization'] ??
             response.headers['Authorization'];
 
-        _logger.info('🔍 응답 헤더 확인: ${response.headers}');
         _logger.info('🔑 Authorization 헤더: $authHeader');
 
         if (authHeader == null || !authHeader.startsWith('Bearer ')) {
@@ -213,7 +240,7 @@ class ApiClient {
           errorCode = errorJson['message'];
           errorMessage = errorJson['message'];
         } catch (e) {
-          _logger.severe('❌ 응답 파싱 에러: $e');
+          _logger.severe('❌ 응답 바디 파싱 에러: $e / 원본 바디: ${response.body}');
         }
       }
 
@@ -222,7 +249,7 @@ class ApiClient {
       throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
     } catch (e) {
       if (e is ApiException) rethrow;
-      _logger.severe('❌ postForHeader 에러: $e');
+      _logger.severe('❌ postForHeader 예외 (타입: ${e.runtimeType}): $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }

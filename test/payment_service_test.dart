@@ -153,71 +153,75 @@ void main() {
       expect(response.failureReason, isNull);
     });
 
-    test('pollOrderStatusUntilFinal keeps polling until terminal state',
+    test('watchOrderStatus receives SSE updates and closes on terminal state',
         () async {
-      var callCount = 0;
+      await _setPrefs(kioskId: 'KIOSK-001');
+
       final service = _buildService(
-        MockClient((request) async {
-          callCount += 1;
+        _StreamingTestClient((request) async {
+          expect(request.method, 'GET');
+          expect(
+              request.url.toString(), 'http://localhost/orders/order-4/stream');
+          expect(request.headers['Accept'], 'text/event-stream');
+          expect(request.headers.containsKey('Authorization'), isFalse);
+          expect(request.headers['X-Kiosk-Id'], 'KIOSK-001');
 
-          late final String status;
-          if (callCount == 1) {
-            status = 'PENDING';
-          } else if (callCount == 2) {
-            status = 'PROCESSING';
-          } else {
-            status = 'COMPLETED';
-          }
-
-          return http.Response(
-            jsonEncode({
-              'orderId': 'order-4',
-              'status': status,
-              'failureReason': null,
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
+          return _streamResponse(
+            [
+              'data: {"orderId":"order-4","status":"PROCESSING","failureReason":null}\n\n',
+              'data: {"orderId":"order-4","status":"COMPLETED","failureReason":null}\n\n',
+            ],
           );
         }),
       );
 
-      final response = await service.pollOrderStatusUntilFinal(
-        'order-4',
-        interval: const Duration(milliseconds: 1),
-        timeout: const Duration(milliseconds: 50),
-      );
+      final events = await service.watchOrderStatus('order-4').toList();
 
-      expect(callCount, 3);
-      expect(response.status, OrderStatus.completed);
+      expect(events.map((event) => event.status), [
+        OrderStatus.processing,
+        OrderStatus.completed,
+      ]);
     });
 
-    test('pollOrderStatusUntilFinal returns TIMED_OUT on client-side timeout',
+    test('watchOrderStatus falls back to single status fetch on SSE error',
         () async {
-      var callCount = 0;
+      await _setPrefs(kioskId: 'KIOSK-001');
+
+      var streamRequestCount = 0;
+      var fallbackRequestCount = 0;
       final service = _buildService(
-        MockClient((request) async {
-          callCount += 1;
-          return http.Response(
-            jsonEncode({
-              'orderId': 'order-5',
-              'status': 'PROCESSING',
-              'failureReason': null,
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
+        _StreamingTestClient((request) async {
+          if (request.url.path == '/orders/order-5/stream') {
+            streamRequestCount += 1;
+            return _jsonStreamedResponse(
+              500,
+              {'message': 'SERVER_ERROR'},
+            );
+          }
+
+          if (request.url.path == '/orders/order-5') {
+            fallbackRequestCount += 1;
+            return _jsonStreamedResponse(
+              200,
+              {
+                'orderId': 'order-5',
+                'status': 'COMPLETED',
+                'failureReason': null,
+              },
+            );
+          }
+
+          fail('Unexpected request: ${request.method} ${request.url}');
         }),
       );
 
-      final response = await service.pollOrderStatusUntilFinal(
-        'order-5',
-        interval: const Duration(milliseconds: 1),
-        timeout: const Duration(milliseconds: 3),
-      );
+      final events = await service.watchOrderStatus('order-5').toList();
 
-      expect(callCount, greaterThanOrEqualTo(1));
-      expect(response.orderId, 'order-5');
-      expect(response.status, OrderStatus.timedOut);
+      expect(streamRequestCount, 1);
+      expect(fallbackRequestCount, 1);
+      expect(events, hasLength(1));
+      expect(events.single.orderId, 'order-5');
+      expect(events.single.status, OrderStatus.completed);
     });
 
     test('cancelOrder posts to cancel endpoint without auth for guest mode',
@@ -299,4 +303,35 @@ List<CartItem> _sampleItems() {
       quantity: 1,
     ),
   ];
+}
+
+class _StreamingTestClient extends http.BaseClient {
+  final Future<http.StreamedResponse> Function(http.BaseRequest request)
+      _handler;
+
+  _StreamingTestClient(this._handler);
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    return _handler(request);
+  }
+}
+
+http.StreamedResponse _jsonStreamedResponse(
+  int statusCode,
+  Map<String, dynamic> body,
+) {
+  return http.StreamedResponse(
+    Stream.value(utf8.encode(jsonEncode(body))),
+    statusCode,
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  );
+}
+
+http.StreamedResponse _streamResponse(List<String> chunks) {
+  return http.StreamedResponse(
+    Stream.fromIterable(chunks.map(utf8.encode)),
+    200,
+    headers: {'content-type': 'text/event-stream'},
+  );
 }

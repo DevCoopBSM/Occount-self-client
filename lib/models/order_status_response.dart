@@ -1,13 +1,21 @@
 class OrderStatus {
-  static const String pending = 'PENDING';
   static const String processing = 'PROCESSING';
   static const String completed = 'COMPLETED';
   static const String failed = 'FAILED';
   static const String cancelRequested = 'CANCEL_REQUESTED';
-  static const String compensating = 'COMPENSATING';
   static const String cancelled = 'CANCELLED';
   static const String compensationFailed = 'COMPENSATION_FAILED';
   static const String timedOut = 'TIMED_OUT';
+
+  static const Set<String> values = {
+    processing,
+    completed,
+    failed,
+    cancelRequested,
+    cancelled,
+    compensationFailed,
+    timedOut,
+  };
 
   static const Set<String> terminalStatuses = {
     completed,

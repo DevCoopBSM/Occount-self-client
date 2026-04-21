@@ -26,6 +26,10 @@ class ApiEndpoints {
   // GET /orders/{orderId} — 주문 상태 조회
   static String getOrderStatus(String orderId) => '/orders/$orderId';
 
+  // GET /orders/{orderId}/stream — 주문 상태 SSE 구독
+  static String getOrderStatusStream(String orderId) =>
+      '/orders/$orderId/stream';
+
   // POST /orders/{orderId}/cancel — 주문 취소 요청
   static String cancelOrder(String orderId) => '/orders/$orderId/cancel';
 

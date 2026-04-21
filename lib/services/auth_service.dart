@@ -69,8 +69,11 @@ class AuthService {
           '✅ 로그인 전체 성공: ${response.userInfo.userName} (포인트: ${response.userInfo.userPoint})');
       return response;
     } catch (e) {
-      _logger.severe('❌ 로그인 실패: $e');
-      if (e is ApiException) rethrow;
+      _logger.severe('❌ 로그인 실패 (타입: ${e.runtimeType}): $e');
+      if (e is ApiException) {
+        _logger.severe('❌ ApiException - code: ${e.code}, message: ${e.message}, status: ${e.status}');
+        rethrow;
+      }
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }

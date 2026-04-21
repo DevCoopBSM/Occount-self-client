@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/payment_service.dart';
 import '../services/item_service.dart';
@@ -31,6 +33,7 @@ class PaymentProvider extends ChangeNotifier {
   bool _cancelRequested = false;
   bool _isCancellationInProgress = false;
   int _activePaymentFlowId = 0;
+  StreamSubscription<OrderStatusResponse>? _orderStatusSubscription;
 
   PaymentProvider(this._paymentService, this._itemService, this._chargeService);
 
@@ -99,6 +102,7 @@ class PaymentProvider extends ChangeNotifier {
     required BuildContext context,
   }) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await _cancelOrderStatusSubscription();
     final flowId = ++_activePaymentFlowId;
     final cartSnapshot = authProvider.cartItems
         .map((item) => item.copyWith())
@@ -174,9 +178,8 @@ class PaymentProvider extends ChangeNotifier {
         return;
       }
 
-      final finalOrder = await _paymentService.pollOrderStatusUntilFinal(
+      final finalOrder = await _watchOrderUntilTerminal(
         createdOrder.orderId,
-        initialDelay: PaymentService.initialOrderPollingDelay,
       );
 
       if (!_isSameFlow(flowId) || _isCancellationInProgress) {
@@ -403,11 +406,50 @@ class PaymentProvider extends ChangeNotifier {
 
   bool _isSameFlow(int flowId) => _activePaymentFlowId == flowId;
 
+  Future<OrderStatusResponse> _watchOrderUntilTerminal(String orderId) async {
+    final completer = Completer<OrderStatusResponse>();
+    OrderStatusResponse? lastStatus;
+
+    await _cancelOrderStatusSubscription();
+    _orderStatusSubscription = _paymentService.watchOrderStatus(orderId).listen(
+      (status) {
+        lastStatus = status;
+      },
+      onDone: () {
+        if (completer.isCompleted) {
+          return;
+        }
+
+        if (lastStatus != null && lastStatus!.isTerminal) {
+          completer.complete(lastStatus);
+          return;
+        }
+
+        completer.completeError(
+          StateError('주문 상태 스트림이 최종 상태 없이 종료되었습니다.'),
+        );
+      },
+      onError: (Object e) {
+        if (!completer.isCompleted) {
+          completer.completeError(e);
+        }
+      },
+    );
+
+    return completer.future;
+  }
+
   void _resetPaymentFlowState() {
     _isProcessingDialogVisible = false;
     _currentOrderId = null;
     _cancelRequested = false;
     _isCancellationInProgress = false;
+    unawaited(_cancelOrderStatusSubscription());
+  }
+
+  Future<void> _cancelOrderStatusSubscription() async {
+    await _orderStatusSubscription?.cancel();
+    _orderStatusSubscription = null;
   }
 
   Future<void> _closeProcessingDialog(BuildContext context) async {
@@ -538,6 +580,7 @@ class PaymentProvider extends ChangeNotifier {
     }
 
     _isCancellationInProgress = true;
+    await _cancelOrderStatusSubscription();
 
     OrderStatusResponse cancelResponse;
     try {
@@ -554,10 +597,9 @@ class PaymentProvider extends ChangeNotifier {
       cancelResponse = await _paymentService.getOrderStatus(orderId);
     }
 
-    final finalStatus = (cancelResponse.isTerminal ||
-            cancelResponse.status == OrderStatus.cancelRequested)
+    final finalStatus = cancelResponse.isTerminal
         ? cancelResponse
-        : await _paymentService.pollOrderStatusUntilFinal(orderId);
+        : await _paymentService.watchOrderStatus(orderId).last;
 
     if (!_isSameFlow(flowId)) {
       return;
@@ -625,6 +667,12 @@ class PaymentProvider extends ChangeNotifier {
         );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_cancelOrderStatusSubscription());
+    super.dispose();
   }
 
   Future<void> _handlePaymentError({
