@@ -49,4 +49,28 @@ class KioskConfigService {
     final kioskId = await getKioskId();
     return kioskId != null && kioskId.isNotEmpty;
   }
+
+  static const String _guestModeKey = 'guest_mode_enabled';
+
+  Future<bool> isGuestModeEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_guestModeKey) ?? false;
+    } catch (e) {
+      _logger.severe('❌ [KIOSK_CONFIG] 비회원 모드 조회 실패: $e');
+      return false;
+    }
+  }
+
+  Future<bool> setGuestModeEnabled(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final success = await prefs.setBool(_guestModeKey, enabled);
+      _logger.info('🏪 [KIOSK_CONFIG] 비회원 모드 설정: $enabled');
+      return success;
+    } catch (e) {
+      _logger.severe('❌ [KIOSK_CONFIG] 비회원 모드 설정 실패: $e');
+      return false;
+    }
+  }
 }

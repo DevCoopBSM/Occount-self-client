@@ -5,6 +5,7 @@ import '../_constant/theme/devcoop_text_style.dart';
 import '../_constant/theme/devcoop_colors.dart';
 import 'package:provider/provider.dart';
 import '../../provider/auth_provider.dart';
+import '../../services/kiosk_config_service.dart';
 
 class BarcodeScanPage extends StatefulWidget {
   const BarcodeScanPage({Key? key}) : super(key: key);
@@ -18,6 +19,7 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   TextEditingController _codeNumberController = TextEditingController();
   final FocusNode _barcodeFocus = FocusNode();
+  bool _guestModeEnabled = false;
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
         if (!authProvider.isLoggedIn) {
           _refreshContent();
         }
+        _loadGuestModeSetting();
       }
     });
   }
@@ -54,6 +57,29 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
         FocusScope.of(context).requestFocus(_barcodeFocus);
       });
     });
+  }
+
+  Future<void> _loadGuestModeSetting() async {
+    final kioskConfigService = context.read<KioskConfigService>();
+    final enabled = await kioskConfigService.isGuestModeEnabled();
+    if (mounted) {
+      setState(() => _guestModeEnabled = enabled);
+    }
+  }
+
+  void _handleSubmit() {
+    if (!mounted) return;
+    final input = _codeNumberController.text.trim();
+
+    if (input.toUpperCase() == 'ADMIN') {
+      _codeNumberController.clear();
+      Navigator.pushNamed(context, '/admin');
+      return;
+    }
+
+    if (_formKey.currentState?.validate() ?? false) {
+      Navigator.pushNamed(context, '/pin', arguments: input);
+    }
   }
 
   Future<void> handleScan() async {
@@ -115,17 +141,7 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                             child: TextFormField(
                                   controller: _codeNumberController,
                                   focusNode: _barcodeFocus,
-                                  onFieldSubmitted: (value) {
-                                    if (_formKey.currentState?.validate() ??
-                                        false) {
-                                      if (!mounted) return;
-                                      Navigator.pushNamed(
-                                        context,
-                                        '/pin',
-                                        arguments: _codeNumberController.text,
-                                      );
-                                    }
-                                  },
+                                  onFieldSubmitted: (_) => _handleSubmit(),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
                                       return '학생증 번호를 입력해주세요.';
@@ -149,37 +165,28 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                             children: [
                                 mainTextButton(
                                   text: '로그인',
-                                onTap: () {
-                                  if (_formKey.currentState?.validate() ??
-                                      false) {
-                                    if (!mounted) return;
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/pin',
-                                      arguments: _codeNumberController.text,
-                                    );
-                                  }
-                                },
+                                onTap: _handleSubmit,
                               ),
-                              const SizedBox(width: 40),
-                              mainTextButton(
-                                text: '비회원',
-                                onTap: () {
-                                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                                  authProvider.enableGuestMode();
+                              if (_guestModeEnabled) ...[
+                                const SizedBox(width: 40),
+                                mainTextButton(
+                                  text: '비회원',
+                                  onTap: () {
+                                    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                                    authProvider.enableGuestMode();
 
-                                  // 상태 변경 후 명시적으로 홈으로 이동
-                                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                                    if (mounted) {
-                                      Navigator.pushNamedAndRemoveUntil(
-                                        context,
-                                        '/',
-                                        (route) => false,
-                                      );
-                                    }
-                                  });
-                                },
-                              ),
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      if (mounted) {
+                                        Navigator.pushNamedAndRemoveUntil(
+                                          context,
+                                          '/',
+                                          (route) => false,
+                                        );
+                                      }
+                                    });
+                                  },
+                                ),
+                              ],
                             ],
                           )
                         ],

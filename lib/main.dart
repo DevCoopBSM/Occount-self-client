@@ -23,6 +23,7 @@ import 'services/charge_service.dart';
 import 'services/kiosk_config_service.dart';
 import 'ui/payments/payment_page.dart';
 import 'ui/setup/kiosk_setup_checker.dart';
+import 'ui/settings/kiosk_config_page.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -120,6 +121,7 @@ Future<void> main() async {
               ),
           '/payment': (context) => const PaymentPage(),
           '/pin': (context) => const PinPage(),
+          '/admin': (context) => const KioskConfigPage(),
         },
       ),
     ),

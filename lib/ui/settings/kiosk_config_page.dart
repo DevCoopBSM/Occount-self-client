@@ -15,6 +15,8 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
   final TextEditingController _kioskIdController = TextEditingController();
   String? _currentKioskId;
   bool _isLoading = false;
+  bool _guestModeEnabled = false;
+  bool _isEditingKioskId = false;
 
   @override
   void initState() {
@@ -33,10 +35,12 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
     try {
       final kioskConfigService = context.read<KioskConfigService>();
       final kioskId = await kioskConfigService.getKioskId();
+      final guestMode = await kioskConfigService.isGuestModeEnabled();
       if (mounted) {
         setState(() {
           _currentKioskId = kioskId;
           _kioskIdController.text = kioskId ?? '';
+          _guestModeEnabled = guestMode;
         });
       }
     } catch (e) {
@@ -65,19 +69,24 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
 
       if (mounted) {
         if (success) {
-          setState(() => _currentKioskId = kioskId);
+          final wasEditing = _isEditingKioskId;
+          setState(() {
+            _currentKioskId = kioskId;
+            _isEditingKioskId = false;
+          });
           _showSuccessSnackBar('키오스크 ID가 저장되었습니다');
 
-          // 설정 완료 후 2초 뒤에 자동으로 홈으로 이동
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/',
-                (route) => false,
-              );
-            }
-          });
+          if (!wasEditing) {
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => false,
+                );
+              }
+            });
+          }
         } else {
           _showErrorSnackBar('키오스크 ID 저장에 실패했습니다');
         }
@@ -189,37 +198,37 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                     ),
                   ),
 
-                  if (isAlreadySet) ...[
+                  if (isAlreadySet && !_isEditingKioskId) ...[
                     const SizedBox(height: 24),
-                    Container(
+                    SizedBox(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade200),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.lock, color: Colors.blue.shade600),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              '키오스크 ID는 보안을 위해 한 번 설정하면 변경할 수 없습니다.',
-                              style: DevCoopTextStyle.medium_20.copyWith(
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _isEditingKioskId = true;
+                            _kioskIdController.text = _currentKioskId ?? '';
+                          });
+                        },
+                        icon: const Icon(Icons.edit),
+                        label: Text(
+                          '키오스크 ID 변경',
+                          style: DevCoopTextStyle.bold_20,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade200,
+                          foregroundColor: DevCoopColors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ] else ...[
                     const SizedBox(height: 24),
 
-                    // 키오스크 ID 입력 (미설정 상태에서만 표시)
                     Text(
-                      '새 키오스크 ID',
+                      isAlreadySet ? '키오스크 ID 변경' : '새 키오스크 ID',
                       style: DevCoopTextStyle.medium_20,
                     ),
                     const SizedBox(height: 8),
@@ -246,28 +255,102 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                       style: DevCoopTextStyle.medium_20,
                     ),
 
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 16),
 
-                    // 등록 버튼 (미설정 상태에서만 표시)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _saveKioskId,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: DevCoopColors.primary,
-                          foregroundColor: DevCoopColors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                    Row(
+                      children: [
+                        if (_isEditingKioskId) ...[
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isEditingKioskId = false;
+                                  _kioskIdController.text = _currentKioskId ?? '';
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey.shade300,
+                                foregroundColor: DevCoopColors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Text('취소', style: DevCoopTextStyle.bold_20),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                        ],
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _saveKioskId,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: DevCoopColors.primary,
+                              foregroundColor: DevCoopColors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              isAlreadySet ? '키오스크 ID 변경 저장' : '키오스크 ID 등록',
+                              style: DevCoopTextStyle.bold_20,
+                            ),
                           ),
                         ),
-                        child: Text(
-                          '키오스크 ID 등록',
-                          style: DevCoopTextStyle.bold_20,
-                        ),
-                      ),
+                      ],
                     ),
                   ],
+
+                  const SizedBox(height: 32),
+
+                  // 비회원 모드 설정
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: DevCoopColors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '비회원 결제 모드',
+                                style: DevCoopTextStyle.bold_20,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '활성화하면 로그인 화면에 비회원 결제 버튼이 표시됩니다.',
+                                style: DevCoopTextStyle.medium_20.copyWith(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _guestModeEnabled,
+                          activeColor: DevCoopColors.primary,
+                          onChanged: (value) async {
+                            final kioskConfigService = context.read<KioskConfigService>();
+                            final success = await kioskConfigService.setGuestModeEnabled(value);
+                            if (success && mounted) {
+                              setState(() => _guestModeEnabled = value);
+                              _showSuccessSnackBar(
+                                value ? '비회원 모드가 활성화되었습니다' : '비회원 모드가 비활성화되었습니다',
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
 
                   const Spacer(),
 
@@ -292,12 +375,11 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                         Text(
                           isAlreadySet
                               ? '• 키오스크 ID는 주문 시 백엔드로 전송됩니다.\n'
-                                '• 보안상 한 번 설정하면 변경이 불가능합니다.\n'
-                                '• 변경이 필요한 경우 관리자에게 문의하세요.'
+                                '• 관리자 페이지에서 키오스크 ID를 변경할 수 있습니다.\n'
+                                '• 비회원 모드를 활성화하면 로그인 화면에 비회원 버튼이 표시됩니다.'
                               : '• 키오스크 ID는 주문 요청 시 백엔드로 함께 전송됩니다.\n'
                                 '• 각 키오스크마다 고유한 ID를 설정해주세요.\n'
-                                '• 예: KIOSK_001, KIOSK_A, TABLET_01 등\n'
-                                '• 한 번 설정하면 변경할 수 없으니 신중히 입력하세요.',
+                                '• 예: KIOSK_001, KIOSK_A, TABLET_01 등',
                           style: DevCoopTextStyle.medium_20,
                         ),
                       ],
