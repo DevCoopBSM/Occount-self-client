@@ -554,7 +554,8 @@ class PaymentProvider extends ChangeNotifier {
       cancelResponse = await _paymentService.getOrderStatus(orderId);
     }
 
-    final finalStatus = cancelResponse.isTerminal
+    final finalStatus = (cancelResponse.isTerminal ||
+            cancelResponse.status == OrderStatus.cancelRequested)
         ? cancelResponse
         : await _paymentService.pollOrderStatusUntilFinal(orderId);
 
@@ -582,7 +583,8 @@ class PaymentProvider extends ChangeNotifier {
       return;
     }
 
-    final isCancelled = finalStatus.status == OrderStatus.cancelled;
+    final isCancelled = finalStatus.status == OrderStatus.cancelled ||
+        finalStatus.status == OrderStatus.cancelRequested;
     final isCompensationFailed =
         finalStatus.status == OrderStatus.compensationFailed;
     final isTimedOut = finalStatus.status == OrderStatus.timedOut;
