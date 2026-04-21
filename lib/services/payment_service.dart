@@ -258,6 +258,7 @@ class PaymentService {
 
     final dataLines = <String>[];
     OrderStatusResponse? lastStatus;
+    DateTime? lastLogTime;
 
     try {
       await for (final line in lines) {
@@ -271,9 +272,19 @@ class PaymentService {
             continue;
           }
 
+          final now = DateTime.now();
+          final statusChanged = lastStatus?.status != nextStatus.status;
+          final shouldLog = statusChanged ||
+              nextStatus.isTerminal ||
+              lastLogTime == null ||
+              now.difference(lastLogTime!).inMilliseconds >= 1000;
+
           lastStatus = nextStatus;
-          _logger.info(
-              '📥 주문 상태 SSE 수신 - orderId: $orderId, status: ${nextStatus.status}');
+          if (shouldLog) {
+            lastLogTime = now;
+            _logger.info(
+                '📥 주문 상태 SSE 수신 - orderId: $orderId, status: ${nextStatus.status}');
+          }
           yield nextStatus;
 
           if (nextStatus.isTerminal) {
