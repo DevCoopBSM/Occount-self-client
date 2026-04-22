@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../_constant/theme/devcoop_text_style.dart';
 import '../../_constant/component/button.dart';
+import '../../../provider/auth_provider.dart';
 import '../../../provider/payment_provider.dart';
 import './non_barcode_dialog.dart';
 import './all_items_dialog.dart';
@@ -37,6 +38,12 @@ class BarcodeInputState extends State<BarcodeInput> {
   Future<void> _handleBarcodeSubmit(String value) async {
     if (!mounted) return;
 
+    if (value.trim().toUpperCase() == 'ADMIN') {
+      _barcodeController.clear();
+      Navigator.of(context, rootNavigator: true).pushNamed('/admin');
+      return;
+    }
+
     final paymentProvider =
         Provider.of<PaymentProvider>(context, listen: false);
     try {
@@ -59,6 +66,7 @@ class BarcodeInputState extends State<BarcodeInput> {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
     final textStyle = DevCoopTextStyle.medium_20.copyWith(
       color: Colors.black,
     );
@@ -84,7 +92,9 @@ class BarcodeInputState extends State<BarcodeInput> {
               decoration: InputDecoration(
                 contentPadding: EdgeInsets.zero,
                 isDense: true,
-                hintText: '바코드를 스캔해주세요',
+                hintText: authProvider.isGuestCheckoutOnlyEnabled
+                    ? '상품 바코드를 스캔해주세요'
+                    : '바코드를 스캔해주세요',
                 hintStyle: DevCoopTextStyle.medium_30.copyWith(fontSize: 15),
                 border: InputBorder.none,
               ),

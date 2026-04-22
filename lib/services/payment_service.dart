@@ -1,5 +1,5 @@
-import 'dart:async';
-
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
@@ -14,9 +14,7 @@ import '../models/cart_item.dart';
 import 'kiosk_config_service.dart';
 
 class PaymentService {
-  static const Duration orderPollingInterval = Duration(milliseconds: 100);
-  static const Duration orderPollingTimeout = Duration(seconds: 30);
-  static const Duration initialOrderPollingDelay = Duration(seconds: 1);
+  static const Duration orderStatusStreamTimeout = Duration(seconds: 35);
 
   final ApiClient _apiClient;
   final KioskConfigService _kioskConfigService;
@@ -189,7 +187,7 @@ class PaymentService {
         ApiEndpoints.getOrderStatus(orderId),
         (json) => OrderStatusResponse.fromJson(json as Map<String, dynamic>),
         requiresAuth: false,
-        includeKioskId: true,
+        includeKioskId: false,
       );
     } catch (e) {
       _logger.severe('❌ 주문 상태 조회 실패: $e');
@@ -197,52 +195,143 @@ class PaymentService {
     }
   }
 
-  Future<OrderStatusResponse> pollOrderStatusUntilFinal(
+  /// config에 따라 SSE 또는 폴링으로 주문 상태를 구독한다.
+  Stream<OrderStatusResponse> watchOrderStatus(
     String orderId, {
-    Duration interval = orderPollingInterval,
-    Duration timeout = orderPollingTimeout,
-    Duration initialDelay = Duration.zero,
-  }) async {
-    if (initialDelay > Duration.zero) {
-      _logger.info('⏳ 첫 주문 상태 조회 대기 - orderId: $orderId, delay: $initialDelay');
-      await Future.delayed(initialDelay);
+    Duration timeout = orderStatusStreamTimeout,
+  }) async* {
+    final isSse = await _kioskConfigService.isSseModeEnabled();
+    if (isSse) {
+      yield* _watchOrderStatusViaSse(orderId, timeout: timeout);
+    } else {
+      yield* _watchOrderStatusViaPolling(orderId, timeout: timeout);
     }
+  }
 
+  Stream<OrderStatusResponse> _watchOrderStatusViaPolling(
+    String orderId, {
+    required Duration timeout,
+  }) async* {
+    const pollInterval = Duration(milliseconds: 500);
     final deadline = DateTime.now().add(timeout);
-    var currentStatus = await getOrderStatus(orderId);
 
-    while (!currentStatus.isTerminal) {
+    while (true) {
+      final status = await getOrderStatus(orderId);
+      _logger.info('📥 폴링 상태 수신 - orderId: $orderId, status: ${status.status}');
+      yield status;
+
+      if (status.isTerminal) {
+        _logger.info('✅ 폴링 완료 - orderId: $orderId, status: ${status.status}');
+        return;
+      }
+
       if (DateTime.now().isAfter(deadline)) {
-        _logger.warning('⏱️ 주문 상태 폴링 타임아웃 - orderId: $orderId');
-        return OrderStatusResponse(
-          orderId: orderId,
-          status: OrderStatus.timedOut,
+        throw ApiException.fromErrorCode(
+          ApiErrorCode.paymentTimeout,
+          '주문 상태 확인 시간이 초과되었습니다.',
         );
       }
 
-      _logger.info(
-          '🔄 주문 상태 폴링 - orderId: $orderId, status: ${currentStatus.status}');
-      await Future.delayed(interval);
-      currentStatus = await getOrderStatus(orderId);
+      await Future.delayed(pollInterval);
+    }
+  }
+
+  Stream<OrderStatusResponse> _watchOrderStatusViaSse(
+    String orderId, {
+    required Duration timeout,
+  }) async* {
+    final uri = Uri.parse(
+      '${_apiClient.apiConfig.API_HOST}${ApiEndpoints.getOrderStatusStream(orderId)}',
+    );
+
+    final request = http.Request('GET', uri);
+    request.headers['Accept'] = 'text/event-stream';
+    request.headers['Cache-Control'] = 'no-cache';
+
+    _logger.info('📡 SSE 연결 시작 - orderId: $orderId, url: $uri');
+
+    http.StreamedResponse response;
+    try {
+      response = await _apiClient.client.send(request);
+    } catch (e) {
+      _logger.severe('❌ SSE 연결 실패: $e');
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError, 'SSE 연결 실패');
     }
 
-    _logger.info(
-        '✅ 주문 상태 최종 확인 - orderId: $orderId, status: ${currentStatus.status}');
-    return currentStatus;
+    if (response.statusCode != 200) {
+      _logger.severe('❌ SSE 응답 오류: ${response.statusCode}');
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError, 'SSE 응답 오류: ${response.statusCode}');
+    }
+
+    String leftover = '';
+    String? eventType;
+    String? eventData;
+
+    await for (final chunk in response.stream
+        .transform(utf8.decoder)
+        .timeout(timeout, onTimeout: (sink) => sink.close())) {
+      final text = leftover + chunk;
+      final lines = text.split('\n');
+      leftover = lines.removeLast();
+
+      for (final rawLine in lines) {
+        final line = rawLine.endsWith('\r')
+            ? rawLine.substring(0, rawLine.length - 1)
+            : rawLine;
+
+        if (line.isEmpty) {
+          final data = eventData;
+          final type = eventType;
+          eventType = null;
+          eventData = null;
+
+          if (data != null) {
+            final Map<String, dynamic> json;
+            try {
+              json = jsonDecode(data) as Map<String, dynamic>;
+            } catch (e) {
+              _logger.severe('❌ SSE 데이터 파싱 실패 - event: ${type ?? '-'}, data: $data, error: $e');
+              continue;
+            }
+
+            final status = OrderStatusResponse.fromJson(json);
+            _logger.info('📡 SSE 수신 - event: ${type ?? '-'}, status: ${status.status}');
+            yield status;
+
+            if (status.isTerminal) {
+              _logger.info('✅ 주문 최종 상태 - orderId: $orderId, status: ${status.status}');
+              return;
+            }
+          }
+        } else if (line.startsWith('event:')) {
+          eventType = line.substring('event:'.length).trim();
+        } else if (line.startsWith('data:')) {
+          eventData = line.substring('data:'.length).trim();
+        }
+      }
+    }
+
+    throw ApiException.fromErrorCode(
+      ApiErrorCode.paymentTimeout,
+      '주문 상태 확인 시간이 초과되었습니다.',
+    );
   }
 
   Future<OrderStatusResponse> cancelOrder({
     required String orderId,
     bool isGuestMode = false,
   }) async {
+    _logger.info('🚫 주문 취소 요청 - orderId: $orderId, guestMode: $isGuestMode');
     try {
-      return await _apiClient.post<OrderStatusResponse>(
+      final result = await _apiClient.post<OrderStatusResponse>(
         ApiEndpoints.cancelOrder(orderId),
         null,
         (json) => OrderStatusResponse.fromJson(json as Map<String, dynamic>),
         requiresAuth: !isGuestMode,
         includeKioskId: true,
       );
+      _logger.info('✅ 주문 취소 완료 - orderId: $orderId, status: ${result.status}');
+      return result;
     } catch (e) {
       _logger.severe('❌ 주문 취소 요청 실패: $e');
       rethrow;
@@ -258,10 +347,9 @@ class PaymentService {
       items: items,
       isGuestMode: isGuestMode,
     );
-    final finalStatus = await pollOrderStatusUntilFinal(
+    final finalStatus = await watchOrderStatus(
       createdOrder.orderId,
-      initialDelay: initialOrderPollingDelay,
-    );
+    ).last;
 
     if (finalStatus.status != OrderStatus.completed) {
       throw ApiException.fromErrorCode(

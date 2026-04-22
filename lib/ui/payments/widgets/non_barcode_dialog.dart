@@ -27,6 +27,10 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
     });
   }
 
+  void _handleItemTap(BuildContext context, NonBarcodeItemResponse item) {
+    _addItemToCart(context, item);
+  }
+
   void _addItemToCart(BuildContext context, NonBarcodeItemResponse item) {
     final paymentProvider =
         Provider.of<PaymentProvider>(context, listen: false);
@@ -223,7 +227,7 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
                                   ),
                                 ),
                                 onTap: () {
-                                  _addItemToCart(context, item);
+                                  _handleItemTap(context, item);
                                 },
                               ),
                             );

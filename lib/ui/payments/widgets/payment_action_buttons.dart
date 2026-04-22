@@ -29,28 +29,29 @@ class PaymentActionButtons extends StatelessWidget {
               onTap: () => authProvider.clearCart(),
             ),
             const SizedBox(width: 20),
-            mainTextButton(
-              text: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.logout, weight: 20),
-                  Text("홈으로",
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold))
-                ],
+            if (!authProvider.isGuestMode)
+              mainTextButton(
+                text: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.logout, weight: 20),
+                    Text("홈으로",
+                        style:
+                            TextStyle(fontSize: 20, fontWeight: FontWeight.bold))
+                  ],
+                ),
+                onTap: () async {
+                  await authProvider.returnToLanding();
+                  if (!context.mounted) {
+                    return;
+                  }
+                  Navigator.of(context, rootNavigator: true)
+                      .pushNamedAndRemoveUntil(
+                    '/',
+                    (route) => false,
+                  );
+                },
               ),
-              onTap: () {
-                if (authProvider.isGuestMode) {
-                  authProvider.resetState();
-                } else {
-                  authProvider.logout();
-                }
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/',
-                  (route) => false,
-                );
-              },
-            ),
             const SizedBox(width: 20),
             mainTextButton(
               text: const Row(

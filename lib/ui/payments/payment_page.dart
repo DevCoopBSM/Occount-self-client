@@ -14,7 +14,6 @@ class PaymentPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final barcodeInputKey = GlobalKey<BarcodeInputState>();
 
     return PopScope(
       canPop: false,
@@ -31,7 +30,7 @@ class PaymentPage extends StatelessWidget {
                   userInfo: authProvider.userInfo,
                 ),
                 const SizedBox(height: 20),
-                BarcodeInput(key: barcodeInputKey),
+                const BarcodeInput(),
                 const SizedBox(height: 10),
                 const PaymentItemHeader(),
                 const SizedBox(height: 10),

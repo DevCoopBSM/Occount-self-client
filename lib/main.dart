@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
@@ -37,22 +38,30 @@ Future<void> main() async {
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen(
     (record) {
-      debugPrint('${record.time}: ${record.level.name}: ${record.message}');
+      // App-level logging already controls verbosity, so avoid Flutter's
+      // additional throttling layer hiding or delaying records in the console.
+      debugPrintSynchronously(
+        '${record.time}: ${record.level.name}: ${record.message}',
+      );
     },
   );
 
   final apiConfig = ApiConfig();
   final client = http.Client();
   final kioskConfigService = KioskConfigService();
-  final apiClient = ApiClient(client: client, apiConfig: apiConfig, kioskConfigService: kioskConfigService);
-
+  final apiClient = ApiClient(
+      client: client,
+      apiConfig: apiConfig,
+      kioskConfigService: kioskConfigService);
 
   final serviceProviders = [
     Provider<ApiClient>(create: (_) => apiClient),
     Provider<AuthService>(create: (_) => AuthService(apiClient)),
     Provider<ItemService>(create: (_) => ItemService(apiClient)),
     Provider<KioskConfigService>(create: (_) => kioskConfigService),
-    Provider<PaymentService>(create: (context) => PaymentService(apiClient, context.read<KioskConfigService>())),
+    Provider<PaymentService>(
+        create: (context) =>
+            PaymentService(apiClient, context.read<KioskConfigService>())),
     Provider<CategoryService>(
         create: (_) => CategoryService(apiClient: apiClient)),
     Provider<ChargeService>(create: (_) => ChargeService()),
@@ -60,10 +69,12 @@ Future<void> main() async {
         create: (_) => PaymentCalculationService()),
   ];
 
-
   final stateProviders = [
     ChangeNotifierProvider<AuthProvider>(
-      create: (context) => AuthProvider(context.read<AuthService>()),
+      create: (context) => AuthProvider(
+        context.read<AuthService>(),
+        context.read<KioskConfigService>(),
+      ),
     ),
     ChangeNotifierProvider<NavigationProvider>(
       create: (_) => NavigationProvider(),
