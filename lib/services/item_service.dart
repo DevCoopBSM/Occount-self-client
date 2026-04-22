@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:logging/logging.dart';
 import '../models/item_response.dart';
 import '../models/non_barcode_item_response.dart';
@@ -18,6 +20,15 @@ class ItemService {
   /// 신규 API: GET /items/{barcode}
   Future<ItemResponse> getItemByCode(String itemCode) async {
     try {
+      final requestJson = {
+        'itemCode': itemCode,
+      };
+
+      _logger.info('📤 [ITEM API] ========== 상품 조회 요청 시작 ==========');
+      _logger.info('📤 [ITEM API] 요청 URL: ${ApiEndpoints.getItems}/$itemCode');
+      _logger.info('📤 [ITEM API] 요청 JSON: ${jsonEncode(requestJson)}');
+      _logger.info('📤 [ITEM API] =======================================');
+
       // 명세서: path param 방식, /items/{barcode}
       final response = await _apiClient.get(
         '${ApiEndpoints.getItems}/$itemCode',
@@ -25,6 +36,9 @@ class ItemService {
         // 명세서: /items/** 는 인증 불필요
         requiresAuth: false,
       );
+
+      _logger.info(
+          '📥 [ITEM API] 응답 상품: ${response.itemName} (${response.itemCode})');
       return response;
     } catch (e) {
       _logger.severe('❌ 상품 조회 실패: $e');
@@ -46,16 +60,27 @@ class ItemService {
   /// 신규 API: GET /items/without-barcode → { "items": [...] }
   Future<List<NonBarcodeItemResponse>> getNonBarcodeItems() async {
     if (_cachedNonBarcodeItems != null) {
+      _logger.info(
+          '📥 [ITEM API] 바코드 없는 상품 목록 캐시 사용: ${_cachedNonBarcodeItems!.length}건');
       return _cachedNonBarcodeItems!;
     }
 
     try {
+      const requestJson = <String, dynamic>{};
+
+      _logger.info('📤 [ITEM API] ========== 바코드 없는 상품 조회 요청 시작 ==========');
+      _logger.info('📤 [ITEM API] 요청 URL: ${ApiEndpoints.getNonBarcodeItems}');
+      _logger.info('📤 [ITEM API] 요청 JSON: ${jsonEncode(requestJson)}');
+      _logger.info(
+          '📤 [ITEM API] ===============================================');
+
       final response = await _apiClient.get(
         ApiEndpoints.getNonBarcodeItems,
         (json) {
           // 명세서 변경: 배열 직접 반환 → { "items": [...] } 래핑
           return (json['items'] as List).map((item) {
-            final mapped = NonBarcodeItemResponse.fromJson(item as Map<String, dynamic>);
+            final mapped =
+                NonBarcodeItemResponse.fromJson(item as Map<String, dynamic>);
             return mapped;
           }).toList();
         },
@@ -63,6 +88,7 @@ class ItemService {
         requiresAuth: false,
       );
       _cachedNonBarcodeItems = response;
+      _logger.info('📥 [ITEM API] 바코드 없는 상품 조회 응답 건수: ${response.length}');
       return response;
     } catch (e) {
       _logger.severe('❌ 바코드 없는 상품 목록 조회 실패: $e');
@@ -74,6 +100,13 @@ class ItemService {
   /// 명세서: GET /items — 판매 중인 전체 상품 목록 (바코드 유무 관계없이 모든 상품)
   Future<List<ItemResponse>> getAllItems() async {
     try {
+      const requestJson = <String, dynamic>{};
+
+      _logger.info('📤 [ITEM API] ========== 전체 상품 조회 요청 시작 ==========');
+      _logger.info('📤 [ITEM API] 요청 URL: ${ApiEndpoints.getItems}');
+      _logger.info('📤 [ITEM API] 요청 JSON: ${jsonEncode(requestJson)}');
+      _logger.info('📤 [ITEM API] ===========================================');
+
       final response = await _apiClient.get(
         ApiEndpoints.getItems,
         (json) {
@@ -85,6 +118,7 @@ class ItemService {
         // 명세서: /items/** 는 인증 불필요
         requiresAuth: false,
       );
+      _logger.info('📥 [ITEM API] 전체 상품 조회 응답 건수: ${response.length}');
       return response;
     } catch (e) {
       _logger.severe('❌ 전체 상품 목록 조회 실패: $e');

@@ -1,6 +1,4 @@
-import 'dart:async';
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -189,7 +187,7 @@ class PaymentService {
         ApiEndpoints.getOrderStatus(orderId),
         (json) => OrderStatusResponse.fromJson(json as Map<String, dynamic>),
         requiresAuth: false,
-        includeKioskId: true,
+        includeKioskId: false,
       );
     } catch (e) {
       _logger.severe('❌ 주문 상태 조회 실패: $e');
@@ -197,220 +195,103 @@ class PaymentService {
     }
   }
 
-  /// 주문 상태를 Stream으로 구독한다.
+  /// SSE를 통해 주문이 터미널 상태가 될 때까지 상태 변경을 구독한다.
   Stream<OrderStatusResponse> watchOrderStatus(
     String orderId, {
     Duration timeout = orderStatusStreamTimeout,
   }) async* {
-    try {
-      await for (final status
-          in _watchOrderStatusViaSse(orderId, timeout: timeout)) {
-        yield status;
-      }
-    } catch (error, stackTrace) {
-      _logger.warning('⚠️ 주문 상태 SSE 수신 실패 - orderId: $orderId, error: $error');
-      _logger.fine('⚠️ 주문 상태 SSE 스택트레이스: $stackTrace');
-
-      final fallbackStatus = await _fallbackOrderStatus(orderId);
-      yield fallbackStatus;
-
-      if (fallbackStatus.isTerminal) {
-        return;
-      }
-
-      throw ApiException.fromErrorCode(
-        ApiErrorCode.serverError,
-        '주문 상태 스트림 연결이 종료되었습니다.',
-      );
-    }
-  }
-
-  Stream<OrderStatusResponse> _watchOrderStatusViaSse(
-    String orderId, {
-    required Duration timeout,
-  }) async* {
-    final request = http.Request(
-      'GET',
-      Uri.parse(
-        '${_apiClient.apiConfig.API_HOST}${ApiEndpoints.getOrderStatusStream(orderId)}',
-      ),
-    )
-      ..headers['Accept'] = 'text/event-stream'
-      ..headers['Cache-Control'] = 'no-cache';
-
-    final response = await _apiClient.send(
-      request,
-      requiresAuth: false,
-      includeKioskId: true,
+    final uri = Uri.parse(
+      '${_apiClient.apiConfig.API_HOST}${ApiEndpoints.getOrderStatusStream(orderId)}',
     );
+
+    final request = http.Request('GET', uri);
+    request.headers['Accept'] = 'text/event-stream';
+    request.headers['Cache-Control'] = 'no-cache';
+
+    _logger.info('📡 SSE 연결 시작 - orderId: $orderId, url: $uri');
+
+    http.StreamedResponse response;
+    try {
+      response = await _apiClient.client.send(request);
+    } catch (e) {
+      _logger.severe('❌ SSE 연결 실패: $e');
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError, 'SSE 연결 실패');
+    }
 
     if (response.statusCode != 200) {
-      final body = await response.stream.bytesToString();
-      throw _buildStreamApiException(response.statusCode, body);
+      _logger.severe('❌ SSE 응답 오류: ${response.statusCode}');
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError, 'SSE 응답 오류: ${response.statusCode}');
     }
 
-    _logger.info('📡 주문 상태 SSE 연결 시작 - orderId: $orderId');
+    String leftover = '';
+    String? eventType;
+    String? eventData;
 
-    final lines = response.stream
+    await for (final chunk in response.stream
         .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .timeout(timeout);
+        .timeout(timeout, onTimeout: (sink) => sink.close())) {
+      final text = leftover + chunk;
+      final lines = text.split('\n');
+      leftover = lines.removeLast();
 
-    final dataLines = <String>[];
-    OrderStatusResponse? lastStatus;
-    DateTime? lastLogTime;
+      for (final rawLine in lines) {
+        final line = rawLine.endsWith('\r')
+            ? rawLine.substring(0, rawLine.length - 1)
+            : rawLine;
 
-    try {
-      await for (final line in lines) {
         if (line.isEmpty) {
-          final nextStatus = _parseSseOrderStatus(
-            orderId: orderId,
-            dataLines: dataLines,
-          );
+          final data = eventData;
+          final type = eventType;
+          eventType = null;
+          eventData = null;
 
-          if (nextStatus == null) {
-            continue;
+          if (data != null) {
+            final Map<String, dynamic> json;
+            try {
+              json = jsonDecode(data) as Map<String, dynamic>;
+            } catch (e) {
+              _logger.severe('❌ SSE 데이터 파싱 실패 - event: ${type ?? '-'}, data: $data, error: $e');
+              continue;
+            }
+
+            final status = OrderStatusResponse.fromJson(json);
+            _logger.info('📡 SSE 수신 - event: ${type ?? '-'}, status: ${status.status}');
+            yield status;
+
+            if (status.isTerminal) {
+              _logger.info('✅ 주문 최종 상태 - orderId: $orderId, status: ${status.status}');
+              return;
+            }
           }
-
-          final now = DateTime.now();
-          final statusChanged = lastStatus?.status != nextStatus.status;
-          final shouldLog = statusChanged ||
-              nextStatus.isTerminal ||
-              lastLogTime == null ||
-              now.difference(lastLogTime!).inMilliseconds >= 1000;
-
-          lastStatus = nextStatus;
-          if (shouldLog) {
-            lastLogTime = now;
-            _logger.info(
-                '📥 주문 상태 SSE 수신 - orderId: $orderId, status: ${nextStatus.status}');
-          }
-          yield nextStatus;
-
-          if (nextStatus.isTerminal) {
-            _logger.info(
-                '✅ 주문 상태 SSE 종료 - orderId: $orderId, status: ${nextStatus.status}');
-            return;
-          }
-
-          continue;
-        }
-
-        if (line.startsWith(':')) {
-          continue;
-        }
-
-        if (line.startsWith('data:')) {
-          dataLines.add(line.substring(5).trimLeft());
+        } else if (line.startsWith('event:')) {
+          eventType = line.substring('event:'.length).trim();
+        } else if (line.startsWith('data:')) {
+          eventData = line.substring('data:'.length).trim();
         }
       }
-    } on TimeoutException {
-      _logger.warning('⏱️ 주문 상태 SSE 타임아웃 - orderId: $orderId');
-      rethrow;
     }
 
-    final trailingStatus = _parseSseOrderStatus(
-      orderId: orderId,
-      dataLines: dataLines,
+    throw ApiException.fromErrorCode(
+      ApiErrorCode.paymentTimeout,
+      '주문 상태 확인 시간이 초과되었습니다.',
     );
-    if (trailingStatus != null) {
-      lastStatus = trailingStatus;
-      yield trailingStatus;
-      if (trailingStatus.isTerminal) {
-        return;
-      }
-    }
-
-    throw StateError(
-      '주문 상태 SSE 연결이 예기치 않게 종료되었습니다. '
-      'orderId: $orderId, lastStatus: ${lastStatus?.status}',
-    );
-  }
-
-  OrderStatusResponse? _parseSseOrderStatus({
-    required String orderId,
-    required List<String> dataLines,
-  }) {
-    if (dataLines.isEmpty) {
-      return null;
-    }
-
-    final payload = dataLines.join('\n');
-    dataLines.clear();
-
-    if (payload.isEmpty) {
-      return null;
-    }
-
-    final decoded = json.decode(payload);
-    if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('주문 상태 SSE payload 형식이 올바르지 않습니다.');
-    }
-
-    final response = OrderStatusResponse.fromJson(decoded);
-    if (response.orderId.isEmpty || response.orderId != orderId) {
-      throw FormatException('주문 상태 SSE payload orderId가 올바르지 않습니다: $payload');
-    }
-    if (!OrderStatus.values.contains(response.status)) {
-      throw FormatException('지원하지 않는 주문 상태입니다: ${response.status}');
-    }
-
-    return response;
-  }
-
-  Future<OrderStatusResponse> _fallbackOrderStatus(String orderId) async {
-    _logger.info('↩️ 주문 상태 SSE fallback 조회 - orderId: $orderId');
-    return getOrderStatus(orderId);
-  }
-
-  ApiException _buildStreamApiException(int statusCode, String body) {
-    try {
-      final decoded = body.isEmpty ? null : json.decode(body);
-      if (decoded is Map<String, dynamic>) {
-        final message = decoded['message'] as String?;
-        return ApiException.fromErrorCode(
-          _getApiErrorCode(statusCode, message),
-          message,
-        );
-      }
-    } catch (_) {
-      // SSE 에러 응답이 JSON이 아닐 수 있으므로 일반 서버 오류로 처리한다.
-    }
-
-    return ApiException.fromErrorCode(
-      _getApiErrorCode(statusCode, null),
-      body.isEmpty ? null : body,
-    );
-  }
-
-  ApiErrorCode _getApiErrorCode(int statusCode, String? errorCode) {
-    if (statusCode == 401) {
-      if (errorCode == ApiErrorCode.tokenExpired.code) {
-        return ApiErrorCode.tokenExpired;
-      }
-      return ApiErrorCode.unauthorized;
-    }
-    if (statusCode == 404) {
-      return ApiErrorCode.notFound;
-    }
-    if (statusCode == 409) {
-      return ApiErrorCode.conflict;
-    }
-    return ApiErrorCode.serverError;
   }
 
   Future<OrderStatusResponse> cancelOrder({
     required String orderId,
     bool isGuestMode = false,
   }) async {
+    _logger.info('🚫 주문 취소 요청 - orderId: $orderId, guestMode: $isGuestMode');
     try {
-      return await _apiClient.post<OrderStatusResponse>(
+      final result = await _apiClient.post<OrderStatusResponse>(
         ApiEndpoints.cancelOrder(orderId),
         null,
         (json) => OrderStatusResponse.fromJson(json as Map<String, dynamic>),
         requiresAuth: !isGuestMode,
         includeKioskId: true,
       );
+      _logger.info('✅ 주문 취소 완료 - orderId: $orderId, status: ${result.status}');
+      return result;
     } catch (e) {
       _logger.severe('❌ 주문 취소 요청 실패: $e');
       rethrow;

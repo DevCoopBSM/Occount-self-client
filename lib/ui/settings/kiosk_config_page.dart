@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../main.dart';
+import '../../provider/auth_provider.dart';
 import '../../services/kiosk_config_service.dart';
 import '../_constant/theme/devcoop_colors.dart';
 import '../_constant/theme/devcoop_text_style.dart';
@@ -102,7 +104,6 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
     }
   }
 
-
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -157,10 +158,14 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: isAlreadySet ? DevCoopColors.primary.withValues(alpha: 0.1) : DevCoopColors.white,
+                      color: isAlreadySet
+                          ? DevCoopColors.primary.withValues(alpha: 0.1)
+                          : DevCoopColors.white,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: isAlreadySet ? DevCoopColors.primary : Colors.grey.shade300,
+                        color: isAlreadySet
+                            ? DevCoopColors.primary
+                            : Colors.grey.shade300,
                         width: isAlreadySet ? 2 : 1,
                       ),
                     ),
@@ -170,15 +175,21 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                         Row(
                           children: [
                             Icon(
-                              isAlreadySet ? Icons.check_circle : Icons.info_outline,
-                              color: isAlreadySet ? DevCoopColors.primary : Colors.grey,
+                              isAlreadySet
+                                  ? Icons.check_circle
+                                  : Icons.info_outline,
+                              color: isAlreadySet
+                                  ? DevCoopColors.primary
+                                  : Colors.grey,
                               size: 24,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               isAlreadySet ? '등록된 키오스크 ID' : '키오스크 ID 미설정',
                               style: DevCoopTextStyle.medium_20.copyWith(
-                                color: isAlreadySet ? DevCoopColors.primary : Colors.grey,
+                                color: isAlreadySet
+                                    ? DevCoopColors.primary
+                                    : Colors.grey,
                               ),
                             ),
                           ],
@@ -226,7 +237,6 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                     ),
                   ] else ...[
                     const SizedBox(height: 24),
-
                     Text(
                       isAlreadySet ? '키오스크 ID 변경' : '새 키오스크 ID',
                       style: DevCoopTextStyle.medium_20,
@@ -249,14 +259,13 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: DevCoopColors.primary, width: 2),
+                          borderSide: BorderSide(
+                              color: DevCoopColors.primary, width: 2),
                         ),
                       ),
                       style: DevCoopTextStyle.medium_20,
                     ),
-
                     const SizedBox(height: 16),
-
                     Row(
                       children: [
                         if (_isEditingKioskId) ...[
@@ -265,18 +274,21 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                               onPressed: () {
                                 setState(() {
                                   _isEditingKioskId = false;
-                                  _kioskIdController.text = _currentKioskId ?? '';
+                                  _kioskIdController.text =
+                                      _currentKioskId ?? '';
                                 });
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.grey.shade300,
                                 foregroundColor: DevCoopColors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              child: Text('취소', style: DevCoopTextStyle.bold_20),
+                              child:
+                                  Text('취소', style: DevCoopTextStyle.bold_20),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -325,7 +337,7 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '활성화하면 로그인 화면에 비회원 결제 버튼이 표시됩니다.',
+                                '활성화하면 로그인 화면 없이 비회원 결제 화면으로 바로 진입합니다.',
                                 style: DevCoopTextStyle.medium_20.copyWith(
                                   color: Colors.grey.shade600,
                                   fontSize: 14,
@@ -338,14 +350,30 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                           value: _guestModeEnabled,
                           activeColor: DevCoopColors.primary,
                           onChanged: (value) async {
-                            final kioskConfigService = context.read<KioskConfigService>();
-                            final success = await kioskConfigService.setGuestModeEnabled(value);
-                            if (success && mounted) {
-                              setState(() => _guestModeEnabled = value);
-                              _showSuccessSnackBar(
-                                value ? '비회원 모드가 활성화되었습니다' : '비회원 모드가 비활성화되었습니다',
-                              );
-                            }
+                            final kioskConfigService =
+                                context.read<KioskConfigService>();
+                            final authProvider = context.read<AuthProvider>();
+                            final success = await kioskConfigService
+                                .setGuestModeEnabled(value);
+                            if (!mounted || !success) return;
+
+                            setState(() => _guestModeEnabled = value);
+                            authProvider.setGuestCheckoutOnlyEnabled(value);
+                            rootScaffoldMessengerKey.currentState?.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  value
+                                      ? '비회원 모드가 활성화되었습니다'
+                                      : '비회원 모드가 비활성화되었습니다',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            globalNavigatorKey.currentState
+                                ?.pushNamedAndRemoveUntil(
+                              '/',
+                              (route) => false,
+                            );
                           },
                         ),
                       ],
@@ -375,11 +403,11 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                         Text(
                           isAlreadySet
                               ? '• 키오스크 ID는 주문 시 백엔드로 전송됩니다.\n'
-                                '• 관리자 페이지에서 키오스크 ID를 변경할 수 있습니다.\n'
-                                '• 비회원 모드를 활성화하면 로그인 화면에 비회원 버튼이 표시됩니다.'
+                                  '• 관리자 페이지에서 키오스크 ID를 변경할 수 있습니다.\n'
+                                  '• 비회원 모드를 활성화하면 로그인 없이 비회원 결제 화면으로 바로 이동합니다.'
                               : '• 키오스크 ID는 주문 요청 시 백엔드로 함께 전송됩니다.\n'
-                                '• 각 키오스크마다 고유한 ID를 설정해주세요.\n'
-                                '• 예: KIOSK_001, KIOSK_A, TABLET_01 등',
+                                  '• 각 키오스크마다 고유한 ID를 설정해주세요.\n'
+                                  '• 예: KIOSK_001, KIOSK_A, TABLET_01 등',
                           style: DevCoopTextStyle.medium_20,
                         ),
                       ],

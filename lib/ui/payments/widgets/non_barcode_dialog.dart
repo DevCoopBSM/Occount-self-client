@@ -17,6 +17,8 @@ class NonBarcodeDialog extends StatefulWidget {
 
 class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
   String _selectedCategory = '전체';
+  int _hiddenTapCount = 0;
+  DateTime? _lastTapTime;
 
   @override
   void initState() {
@@ -25,6 +27,26 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
       Provider.of<PaymentProvider>(context, listen: false)
           .loadNonBarcodeItems();
     });
+  }
+
+  void _handleItemTap(BuildContext context, NonBarcodeItemResponse item) {
+    final now = DateTime.now();
+    if (_lastTapTime == null ||
+        now.difference(_lastTapTime!) > const Duration(seconds: 2)) {
+      _hiddenTapCount = 1;
+    } else {
+      _hiddenTapCount++;
+    }
+    _lastTapTime = now;
+
+    if (_hiddenTapCount >= 10) {
+      _hiddenTapCount = 0;
+      Navigator.of(context).pop();
+      Navigator.pushNamed(context, '/admin');
+      return;
+    }
+
+    _addItemToCart(context, item);
   }
 
   void _addItemToCart(BuildContext context, NonBarcodeItemResponse item) {
@@ -223,7 +245,7 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
                                   ),
                                 ),
                                 onTap: () {
-                                  _addItemToCart(context, item);
+                                  _handleItemTap(context, item);
                                 },
                               ),
                             );

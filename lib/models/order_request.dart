@@ -25,7 +25,7 @@ class OrderRequest {
     return {
       'orderInfos': orderInfos.map((e) => e.toJson()).toList(),
       'totalAmount': totalAmount,
-      'kioskId': kioskId,
+      'kioskId': int.tryParse(kioskId) ?? kioskId,
     };
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:just_audio/just_audio.dart';
 import 'package:logging/logging.dart';
 
@@ -17,24 +19,47 @@ class SoundUtils {
   static final Map<SoundType, List<AudioPlayer>> _playerPools = {};
   static final Map<SoundType, int> _currentIndices = {};
   static final Set<SoundType> _initializedTypes = {};
+  static final Map<SoundType, Future<void>> _initializationFutures = {};
 
   static const _poolSize = 10; // 각 사운드 타입당 플레이어 수
 
   static Future<void> _initializeType(SoundType type) async {
-    if (_initializedTypes.contains(type)) return;
+    if (_initializedTypes.contains(type)) {
+      return;
+    }
 
+    final initialization = _initializationFutures[type];
+    if (initialization != null) {
+      await initialization;
+      return;
+    }
+
+    final future = _initializeTypeInternal(type);
+    _initializationFutures[type] = future;
+
+    try {
+      await future;
+    } finally {
+      if (identical(_initializationFutures[type], future)) {
+        _initializationFutures.remove(type);
+      }
+    }
+  }
+
+  static Future<void> _initializeTypeInternal(SoundType type) async {
     try {
       _playerPools[type] ??= List.generate(_poolSize, (_) => AudioPlayer());
       _currentIndices[type] ??= 0;
 
       final players = _playerPools[type]!;
-      for (var player in players) {
+      for (final player in players) {
         await player.setAsset('assets/audios/${type.fileName}');
         await player.setVolume(1.0);
       }
       _initializedTypes.add(type);
     } catch (e) {
       _logger.severe('Failed to initialize ${type.name} players: $e');
+      rethrow;
     }
   }
 
@@ -46,11 +71,9 @@ class SoundUtils {
       final currentIndex = _currentIndices[type]!;
       final player = players[currentIndex];
 
-      // 현재 플레이어 강제 초기화 및 재생
       await player.stop();
-      await player.setAsset('assets/audios/${type.fileName}');
-      await player.setVolume(1.0);
-      player.play();
+      await player.seek(Duration.zero);
+      unawaited(player.play());
 
       // 다음 플레이어로 이동
       _currentIndices[type] = (currentIndex + 1) % players.length;

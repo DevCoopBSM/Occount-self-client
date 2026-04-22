@@ -3,20 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
 import '../services/auth_service.dart';
+import '../services/kiosk_config_service.dart';
 import '../exception/api_exception.dart';
 import '../models/user_info.dart';
 import '../models/auth_response.dart';
 import '../models/login_result.dart';
 import '../models/cart_item.dart';
 import '../main.dart';
+import '../ui/components/session_expired_dialog.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService;
+  final KioskConfigService _kioskConfigService;
   final Logger _logger = Logger('AuthProvider');
   bool _isLoading = false;
   String? _error;
   bool _isLoggedIn = false;
   bool _isGuestMode = false;
+  bool _isGuestCheckoutOnlyEnabled = false;
   final List<CartItem> _cartItems = [];
 
   final UserInfo _emptyUserInfo = UserInfo(
@@ -33,11 +37,20 @@ class AuthProvider with ChangeNotifier {
     userPoint: 0,
   );
 
+  final UserInfo _guestUserInfo = UserInfo(
+    userCode: 'GUEST',
+    userName: '게스트',
+    userNumber: '',
+    userPoint: 0,
+  );
+
   static const int sessionTimeoutSeconds = 300;
   Timer? _sessionTimer;
   bool _isSessionExpired = false;
 
-  AuthProvider(this._authService);
+  AuthProvider(this._authService, this._kioskConfigService) {
+    _initialize();
+  }
 
   bool get isSessionExpired => _isSessionExpired;
 
@@ -46,7 +59,44 @@ class AuthProvider with ChangeNotifier {
   UserInfo get userInfo => _userInfo;
   bool get isLoggedIn => _isLoggedIn;
   bool get isGuestMode => _isGuestMode;
+  bool get isGuestCheckoutOnlyEnabled => _isGuestCheckoutOnlyEnabled;
   List<CartItem> get cartItems => _cartItems;
+
+  Future<void> _initialize() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final enabled = await _kioskConfigService.isGuestModeEnabled();
+      _isGuestCheckoutOnlyEnabled = enabled;
+
+      if (enabled) {
+        _activateGuestMode(notify: false);
+      } else {
+        _userInfo = _emptyUserInfo;
+      }
+    } catch (e) {
+      _logger.severe('❌ 초기 게스트 모드 설정 로드 실패: $e');
+      _isGuestCheckoutOnlyEnabled = false;
+      _userInfo = _emptyUserInfo;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void _activateGuestMode({bool notify = true}) {
+    _cancelSessionTimer();
+    _isGuestMode = true;
+    _isLoggedIn = false;
+    _isSessionExpired = false;
+    _error = null;
+    _userInfo = _guestUserInfo;
+
+    if (notify) {
+      notifyListeners();
+    }
+  }
 
   Future<LoginResult> login(String codeNumber, String pin) async {
     try {
@@ -62,7 +112,8 @@ class AuthProvider with ChangeNotifier {
       _logger.severe('❌ login() catch (타입: ${e.runtimeType}): $e');
 
       if (e is ApiException) {
-        _logger.severe('❌ ApiException - code: ${e.code}, message: ${e.message}, status: ${e.status}');
+        _logger.severe(
+            '❌ ApiException - code: ${e.code}, message: ${e.message}, status: ${e.status}');
 
         if (e.code.code == 'DEFAULT_PIN_IN_USE') {
           // code.code로 정확한 에러 코드 비교
@@ -127,19 +178,13 @@ class AuthProvider with ChangeNotifier {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('세션 만료'),
-        content: const Text('결제 제한시간이 지났습니다.\n다시 로그인 해주세요.'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              logout();
-              globalNavigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
-            },
-            child: const Text('확인'),
-          ),
-        ],
+      builder: (dialogContext) => SessionExpiredDialog(
+        onConfirm: () async {
+          Navigator.of(dialogContext).pop();
+          await logout();
+          globalNavigatorKey.currentState
+              ?.pushNamedAndRemoveUntil('/', (route) => false);
+        },
       ),
     );
   }
@@ -173,6 +218,36 @@ class AuthProvider with ChangeNotifier {
       resetState();
     } catch (e) {
       _logger.severe('Error during logout: $e');
+    }
+  }
+
+  Future<void> returnToLanding() async {
+    try {
+      _cancelSessionTimer();
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.remove('accessToken');
+      await prefs.remove('userCode');
+      await prefs.remove('userName');
+      await prefs.remove('userPoint');
+      await prefs.remove('userNumber');
+
+      _isLoading = false;
+      _error = null;
+      _isLoggedIn = false;
+      _isSessionExpired = false;
+      _cartItems.clear();
+
+      if (_isGuestCheckoutOnlyEnabled) {
+        _isGuestMode = true;
+        _userInfo = _guestUserInfo;
+      } else {
+        _isGuestMode = false;
+        _userInfo = _emptyUserInfo;
+      }
+      notifyListeners();
+    } catch (e) {
+      _logger.severe('Error while returning to landing: $e');
     }
   }
 
@@ -223,23 +298,33 @@ class AuthProvider with ChangeNotifier {
     _isLoading = false;
     _error = null;
     _isLoggedIn = false;
-    _isGuestMode = false;
     _isSessionExpired = false;
-    _userInfo = _emptyUserInfo;
     _cartItems.clear();
+
+    if (_isGuestCheckoutOnlyEnabled) {
+      _isGuestMode = true;
+      _userInfo = _guestUserInfo;
+    } else {
+      _isGuestMode = false;
+      _userInfo = _emptyUserInfo;
+    }
+
     notifyListeners();
   }
 
   void enableGuestMode() {
-    _isGuestMode = true;
-    _isLoggedIn = false;
-    _userInfo = UserInfo(
-      userCode: 'GUEST',
-      userName: '게스트',
-      userNumber: '',
-      userPoint: 0,
-    );
-    notifyListeners();
+    _activateGuestMode();
+  }
+
+  void setGuestCheckoutOnlyEnabled(bool enabled) {
+    _isGuestCheckoutOnlyEnabled = enabled;
+
+    if (enabled) {
+      _activateGuestMode();
+      return;
+    }
+
+    resetState();
   }
 
   void increaseQuantity(int itemId) {
