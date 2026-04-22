@@ -608,6 +608,16 @@ class PaymentProvider extends ChangeNotifier {
     if (!context.mounted) {
       return;
     }
+
+    // isCancelled를 먼저 계산하고 cart를 비운다.
+    // _closeProcessingDialog 이후 context가 unmount될 수 있으므로 그 이전에 처리.
+    final isCancelled = finalStatus.status == OrderStatus.cancelled ||
+        finalStatus.status == OrderStatus.cancelRequested;
+
+    if (isCancelled && authProvider.isGuestMode) {
+      authProvider.clearCart();
+    }
+
     await _closeProcessingDialog(context);
 
     if (!context.mounted) {
@@ -624,9 +634,6 @@ class PaymentProvider extends ChangeNotifier {
       );
       return;
     }
-
-    final isCancelled = finalStatus.status == OrderStatus.cancelled ||
-        finalStatus.status == OrderStatus.cancelRequested;
     final isCompensationFailed =
         finalStatus.status == OrderStatus.compensationFailed;
     final isTimedOut = finalStatus.status == OrderStatus.timedOut;
@@ -658,9 +665,6 @@ class PaymentProvider extends ChangeNotifier {
 
     if (context.mounted) {
       if (isCancelled) {
-        if (authProvider.isGuestMode) {
-          authProvider.clearCart();
-        }
         Navigator.of(context).pop();
       } else {
         Navigator.pushNamedAndRemoveUntil(
