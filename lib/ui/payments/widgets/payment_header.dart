@@ -31,7 +31,7 @@ class _PaymentHeaderState extends State<PaymentHeader> {
   void _onNameLongPressStart(LongPressStartDetails _) {
     _adminTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {
-        Navigator.pushNamed(context, '/admin');
+        Navigator.of(context, rootNavigator: true).pushNamed('/admin');
       }
     });
   }

@@ -40,7 +40,7 @@ class BarcodeInputState extends State<BarcodeInput> {
 
     if (value.trim().toUpperCase() == 'ADMIN') {
       _barcodeController.clear();
-      Navigator.pushNamed(context, '/admin');
+      Navigator.of(context, rootNavigator: true).pushNamed('/admin');
       return;
     }
 
