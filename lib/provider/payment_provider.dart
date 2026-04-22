@@ -658,6 +658,9 @@ class PaymentProvider extends ChangeNotifier {
 
     if (context.mounted) {
       if (isCancelled) {
+        if (authProvider.isGuestMode) {
+          authProvider.clearCart();
+        }
         Navigator.of(context).pop();
       } else {
         Navigator.pushNamedAndRemoveUntil(

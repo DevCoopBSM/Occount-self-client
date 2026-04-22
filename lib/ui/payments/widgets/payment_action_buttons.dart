@@ -29,20 +29,7 @@ class PaymentActionButtons extends StatelessWidget {
               onTap: () => authProvider.clearCart(),
             ),
             const SizedBox(width: 20),
-            if (authProvider.isGuestMode)
-              mainTextButton(
-                text: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.refresh, weight: 20),
-                    Text("장바구니 초기화",
-                        style:
-                            TextStyle(fontSize: 20, fontWeight: FontWeight.bold))
-                  ],
-                ),
-                onTap: () => authProvider.clearCart(),
-              )
-            else
+            if (!authProvider.isGuestMode)
               mainTextButton(
                 text: const Row(
                   mainAxisSize: MainAxisSize.min,
