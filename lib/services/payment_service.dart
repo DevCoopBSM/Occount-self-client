@@ -195,10 +195,50 @@ class PaymentService {
     }
   }
 
-  /// SSE를 통해 주문이 터미널 상태가 될 때까지 상태 변경을 구독한다.
+  /// config에 따라 SSE 또는 폴링으로 주문 상태를 구독한다.
   Stream<OrderStatusResponse> watchOrderStatus(
     String orderId, {
     Duration timeout = orderStatusStreamTimeout,
+  }) async* {
+    final isSse = await _kioskConfigService.isSseModeEnabled();
+    if (isSse) {
+      yield* _watchOrderStatusViaSse(orderId, timeout: timeout);
+    } else {
+      yield* _watchOrderStatusViaPolling(orderId, timeout: timeout);
+    }
+  }
+
+  Stream<OrderStatusResponse> _watchOrderStatusViaPolling(
+    String orderId, {
+    required Duration timeout,
+  }) async* {
+    const pollInterval = Duration(milliseconds: 500);
+    final deadline = DateTime.now().add(timeout);
+
+    while (true) {
+      final status = await getOrderStatus(orderId);
+      _logger.info('📥 폴링 상태 수신 - orderId: $orderId, status: ${status.status}');
+      yield status;
+
+      if (status.isTerminal) {
+        _logger.info('✅ 폴링 완료 - orderId: $orderId, status: ${status.status}');
+        return;
+      }
+
+      if (DateTime.now().isAfter(deadline)) {
+        throw ApiException.fromErrorCode(
+          ApiErrorCode.paymentTimeout,
+          '주문 상태 확인 시간이 초과되었습니다.',
+        );
+      }
+
+      await Future.delayed(pollInterval);
+    }
+  }
+
+  Stream<OrderStatusResponse> _watchOrderStatusViaSse(
+    String orderId, {
+    required Duration timeout,
   }) async* {
     final uri = Uri.parse(
       '${_apiClient.apiConfig.API_HOST}${ApiEndpoints.getOrderStatusStream(orderId)}',

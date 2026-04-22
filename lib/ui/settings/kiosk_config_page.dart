@@ -18,6 +18,7 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
   String? _currentKioskId;
   bool _isLoading = false;
   bool _guestModeEnabled = false;
+  bool _sseModeEnabled = true;
   bool _isEditingKioskId = false;
 
   @override
@@ -38,11 +39,13 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
       final kioskConfigService = context.read<KioskConfigService>();
       final kioskId = await kioskConfigService.getKioskId();
       final guestMode = await kioskConfigService.isGuestModeEnabled();
+      final sseMode = await kioskConfigService.isSseModeEnabled();
       if (mounted) {
         setState(() {
           _currentKioskId = kioskId;
           _kioskIdController.text = kioskId ?? '';
           _guestModeEnabled = guestMode;
+          _sseModeEnabled = sseMode;
         });
       }
     } catch (e) {
@@ -375,6 +378,75 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                               (route) => false,
                             );
                           },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // 개발자 설정
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: DevCoopColors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.developer_mode,
+                                color: Colors.orange.shade700, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              '개발자 설정',
+                              style: DevCoopTextStyle.bold_20.copyWith(
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '주문 상태 확인 방식',
+                                    style: DevCoopTextStyle.bold_20,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _sseModeEnabled
+                                        ? 'SSE — 서버 푸시 방식으로 상태를 수신합니다.'
+                                        : '폴링 — 0.5초 간격으로 상태를 조회합니다.',
+                                    style: DevCoopTextStyle.medium_20.copyWith(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: _sseModeEnabled,
+                              activeColor: Colors.orange.shade700,
+                              onChanged: (value) async {
+                                final kioskConfigService =
+                                    context.read<KioskConfigService>();
+                                final success = await kioskConfigService
+                                    .setSseModeEnabled(value);
+                                if (!mounted || !success) return;
+                                setState(() => _sseModeEnabled = value);
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),

@@ -73,4 +73,28 @@ class KioskConfigService {
       return false;
     }
   }
+
+  static const String _sseModeKey = 'sse_mode_enabled';
+
+  Future<bool> isSseModeEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_sseModeKey) ?? true;
+    } catch (e) {
+      _logger.severe('❌ [KIOSK_CONFIG] SSE 모드 조회 실패: $e');
+      return true;
+    }
+  }
+
+  Future<bool> setSseModeEnabled(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final success = await prefs.setBool(_sseModeKey, enabled);
+      _logger.info('🏪 [KIOSK_CONFIG] 주문 상태 모드: ${enabled ? 'SSE' : '폴링'}');
+      return success;
+    } catch (e) {
+      _logger.severe('❌ [KIOSK_CONFIG] SSE 모드 설정 실패: $e');
+      return false;
+    }
+  }
 }
