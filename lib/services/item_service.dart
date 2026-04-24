@@ -11,6 +11,7 @@ class ItemService {
   final ApiClient _apiClient;
   final Logger _logger = Logger('ItemService');
   List<NonBarcodeItemResponse>? _cachedNonBarcodeItems;
+  final Map<String, ItemResponse> _itemByCodeCache = {};
 
   ItemService(this._apiClient);
 
@@ -19,26 +20,36 @@ class ItemService {
   /// 구 API: GET /kiosk/item?itemCode={barcode}
   /// 신규 API: GET /items/{barcode}
   Future<ItemResponse> getItemByCode(String itemCode) async {
+    final normalized = normalizeBarcode(itemCode);
+
+    final cached = _itemByCodeCache[normalized];
+    if (cached != null) {
+      _logger.info('📥 [ITEM API] 바코드 캐시 사용: $normalized → ${cached.itemName}');
+      return cached;
+    }
+
     try {
       final requestJson = {
-        'itemCode': itemCode,
+        'itemCode': normalized,
       };
 
       _logger.info('📤 [ITEM API] ========== 상품 조회 요청 시작 ==========');
-      _logger.info('📤 [ITEM API] 요청 URL: ${ApiEndpoints.getItems}/$itemCode');
+      _logger
+          .info('📤 [ITEM API] 요청 URL: ${ApiEndpoints.getItems}/$normalized');
       _logger.info('📤 [ITEM API] 요청 JSON: ${jsonEncode(requestJson)}');
       _logger.info('📤 [ITEM API] =======================================');
 
       // 명세서: path param 방식, /items/{barcode}
       final response = await _apiClient.get(
-        '${ApiEndpoints.getItems}/$itemCode',
+        '${ApiEndpoints.getItems}/$normalized',
         (json) => ItemResponse.fromJson(json as Map<String, dynamic>),
         // 명세서: /items/** 는 인증 불필요
         requiresAuth: false,
       );
 
+      _itemByCodeCache[normalized] = response;
       _logger.info(
-          '📥 [ITEM API] 응답 상품: ${response.itemName} (${response.itemCode})');
+          '📥 [ITEM API] 응답 상품: ${response.itemName} (${response.itemCode}) 캐시 저장됨');
       return response;
     } catch (e) {
       _logger.severe('❌ 상품 조회 실패: $e');
@@ -48,6 +59,12 @@ class ItemService {
         status: '404',
       );
     }
+  }
+
+  /// 바코드 상품 캐시 초기화
+  void clearItemCache() {
+    _itemByCodeCache.clear();
+    _logger.info('🗑️ [ITEM API] 바코드 상품 캐시 초기화됨');
   }
 
   String normalizeBarcode(String barcode) {

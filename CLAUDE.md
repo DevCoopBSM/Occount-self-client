@@ -113,6 +113,15 @@ MultiProvider(
 - **Error code mapping**: Server returns `{ "message": "ERROR_CODE" }` format
 - **Payment type determination**: Based on user points vs total amount
 - **Cart state**: Managed in `AuthProvider`, persists during session
+- **Post-task validation (MANDATORY)**: After completing any code changes, always format and analyze **only the changed files**, not the entire project:
+  ```bash
+  # Format changed files only
+  dart format lib/services/item_service.dart lib/provider/payment_provider.dart
+
+  # Analyze changed files only
+  flutter analyze lib/services/item_service.dart lib/provider/payment_provider.dart
+  ```
+  Ensure both pass before marking work as done. Fix all issues before finishing. Do NOT run `dart format .` or `flutter analyze` on the entire project — only target files you actually modified.
 
 ### UI Navigation
 - `/` (root): Auth check → `BarcodeScanPage` or `Home`
