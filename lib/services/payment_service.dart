@@ -214,11 +214,17 @@ class PaymentService {
   }) async* {
     const pollInterval = Duration(milliseconds: 500);
     final deadline = DateTime.now().add(timeout);
+    final pollStopwatch = Stopwatch()..start();
 
     while (true) {
       final status = await getOrderStatus(orderId);
-      _logger.info('📥 폴링 상태 수신 - orderId: $orderId, status: ${status.status}');
+      pollStopwatch.stop();
+      _logger.info(
+        '⏱️ [POLL] 상태 수신 - orderId: $orderId, status: ${status.status}, '
+        '${pollStopwatch.elapsedMilliseconds}ms',
+      );
       yield status;
+      pollStopwatch.reset();
 
       if (status.isTerminal) {
         _logger.info('✅ 폴링 완료 - orderId: $orderId, status: ${status.status}');
@@ -233,6 +239,7 @@ class PaymentService {
       }
 
       await Future.delayed(pollInterval);
+      pollStopwatch.start();
     }
   }
 
@@ -250,11 +257,18 @@ class PaymentService {
 
     _logger.info('📡 SSE 연결 시작 - orderId: $orderId, url: $uri');
 
+    final sseStopwatch = Stopwatch();
     http.StreamedResponse response;
     try {
+      sseStopwatch.start();
       response = await _apiClient.client.send(request);
+      sseStopwatch.stop();
+      _logger.info(
+        '⏱️ [SSE] 연결 수립 - ${sseStopwatch.elapsedMilliseconds}ms',
+      );
     } catch (e) {
-      _logger.severe('❌ SSE 연결 실패: $e');
+      sseStopwatch.stop();
+      _logger.severe('❌ SSE 연결 실패 (${sseStopwatch.elapsedMilliseconds}ms): $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError, 'SSE 연결 실패');
     }
 
@@ -266,6 +280,7 @@ class PaymentService {
     String leftover = '';
     String? eventType;
     String? eventData;
+    final eventStopwatch = Stopwatch();
 
     await for (final chunk in response.stream
         .transform(utf8.decoder)
@@ -286,6 +301,7 @@ class PaymentService {
           eventData = null;
 
           if (data != null) {
+            eventStopwatch.stop();
             final Map<String, dynamic> json;
             try {
               json = jsonDecode(data) as Map<String, dynamic>;
@@ -295,13 +311,19 @@ class PaymentService {
             }
 
             final status = OrderStatusResponse.fromJson(json);
-            _logger.info('📡 SSE 수신 - event: ${type ?? '-'}, status: ${status.status}');
+            _logger.info(
+              '⏱️ [SSE] 이벤트 수신 - event: ${type ?? '-'}, status: ${status.status}, '
+              '${eventStopwatch.elapsedMilliseconds}ms',
+            );
             yield status;
 
             if (status.isTerminal) {
               _logger.info('✅ 주문 최종 상태 - orderId: $orderId, status: ${status.status}');
               return;
             }
+
+            eventStopwatch.reset();
+            eventStopwatch.start();
           }
         } else if (line.startsWith('event:')) {
           eventType = line.substring('event:'.length).trim();
