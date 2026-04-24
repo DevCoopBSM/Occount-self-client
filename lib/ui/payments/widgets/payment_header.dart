@@ -67,7 +67,9 @@ class _PaymentHeaderState extends State<PaymentHeader> {
                 child: Text(
                   authProvider.isGuestMode
                       ? '게스트님'
-                      : '${widget.userInfo?.userName}님',
+                      : (widget.userInfo?.userName?.isNotEmpty == true
+                          ? '${widget.userInfo?.userName}님'
+                          : '로딩 중...'),
                   style: DevCoopTextStyle.medium_30,
                 ),
               ),

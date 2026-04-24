@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
 import 'api_config.dart';
@@ -11,6 +12,8 @@ class ApiClient {
   final ApiConfig apiConfig;
   final KioskConfigService _kioskConfigService;
   final Logger _logger = Logger('ApiClient');
+
+  static const Duration _requestTimeout = Duration(seconds: 5);
 
   ApiClient({
     required this.client,
@@ -66,7 +69,7 @@ class ApiClient {
       final response = await client.get(
         uri,
         headers: headers,
-      );
+      ).timeout(_requestTimeout);
       stopwatch.stop();
       _logger.info(
         '⏱️ [GET] $endpoint - ${stopwatch.elapsedMilliseconds}ms '
@@ -93,6 +96,10 @@ class ApiClient {
       );
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ GET 요청 타임아웃');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ GET 요청 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -111,7 +118,7 @@ class ApiClient {
       request.headers.addAll(headers);
 
       final stopwatch = Stopwatch()..start();
-      final response = await client.send(request);
+      final response = await client.send(request).timeout(_requestTimeout);
       stopwatch.stop();
       _logger.info(
         '⏱️ [SEND] ${request.url} - ${stopwatch.elapsedMilliseconds}ms',
@@ -120,6 +127,10 @@ class ApiClient {
       return response;
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ 요청 전송 타임아웃');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ 요청 전송 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -151,12 +162,12 @@ class ApiClient {
           ? await client.post(
               uri,
               headers: headers,
-            )
+            ).timeout(_requestTimeout)
           : await client.post(
               uri,
               headers: headers,
               body: jsonEncode(data),
-            );
+            ).timeout(_requestTimeout);
       stopwatch.stop();
 
       // 🔍 디버깅: 실제 HTTP 응답 로그
@@ -197,6 +208,10 @@ class ApiClient {
       throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ POST 요청 타임아웃: $endpoint');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }
@@ -223,7 +238,7 @@ class ApiClient {
         uri,
         headers: headers,
         body: jsonEncode(data),
-      );
+      ).timeout(_requestTimeout);
       stopwatch.stop();
 
       _logger.info('📥 [LOGIN RESPONSE] Status: ${response.statusCode}');
@@ -275,6 +290,10 @@ class ApiClient {
       throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ 로그인 요청 타임아웃');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ postForHeader 예외 (타입: ${e.runtimeType}): $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -297,7 +316,7 @@ class ApiClient {
         url,
         headers: headers,
         body: json.encode(body),
-      );
+      ).timeout(_requestTimeout);
       stopwatch.stop();
       _logger.info(
         '⏱️ [PUT] $path - ${stopwatch.elapsedMilliseconds}ms '
@@ -327,6 +346,10 @@ class ApiClient {
       );
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ PUT 요청 타임아웃: $path');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ PUT 요청 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }

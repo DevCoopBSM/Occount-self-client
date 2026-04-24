@@ -62,9 +62,9 @@ class _PinPageState extends State<PinPage> {
 
       if (result.success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${authProvider.userInfo.userName}님 환영합니다'),
-            duration: const Duration(milliseconds: 500),
+          const SnackBar(
+            content: Text('로그인되었습니다'),
+            duration: Duration(milliseconds: 500),
           ),
         );
         Navigator.of(context)
