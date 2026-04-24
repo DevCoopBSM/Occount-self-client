@@ -13,7 +13,8 @@ enum ApiErrorCode {
   paymentTimeout(408, 'PAYMENT_TIMEOUT'),
   paymentCancelled(400, 'PAYMENT_CANCELLED'),
   conflict(409, 'CONFLICT'),
-  transactionInProgress(409, 'TRANSACTION_IN_PROGRESS');
+  transactionInProgress(409, 'TRANSACTION_IN_PROGRESS'),
+  connectionTimeout(0, 'CONNECTION_TIMEOUT');
 
   final dynamic statusCode;
   final String code;
@@ -62,6 +63,8 @@ class ApiException implements Exception {
         return '알 수 없는 오류가 발생했습니다';
       case 'TRANSACTION_IN_PROGRESS':
         return '이미 진행 중인 거래가 있습니다';
+      case 'CONNECTION_TIMEOUT':
+        return '현재 서버와 연결 상태가 좋지 않습니다';
       default:
         return '오류가 발생했습니다';
     }
