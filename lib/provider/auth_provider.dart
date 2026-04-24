@@ -104,8 +104,27 @@ class AuthProvider with ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      final response = await _authService.login(codeNumber, pin);
-      await _saveUserData(response);
+      // Step 1: 토큰만 획득 (빠른 화면 전환)
+      final token = await _authService.loginForToken(codeNumber, pin);
+
+      // userCode 저장 (accessToken은 loginForToken에서 이미 저장됨)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userCode', codeNumber);
+
+      _userInfo = UserInfo(
+        userCode: codeNumber,
+        userName: '',
+        userNumber: '',
+        userPoint: 0,
+      );
+      _isLoggedIn = true;
+      _isLoading = false;
+      _startSessionTimer();
+      notifyListeners();
+
+      // 백그라운드에서 사용자 정보(이름, 포인트) 로드
+      _loadUserInfoInBackground(codeNumber);
+
       return LoginResult(success: true);
     } catch (e) {
       _isLoading = false;
@@ -134,6 +153,26 @@ class AuthProvider with ChangeNotifier {
       _error = '네트워크 오류가 발생했습니다';
       notifyListeners();
       return LoginResult(success: false, message: _error);
+    }
+  }
+
+  /// 백그라운드에서 사용자 이름과 포인트를 비동기 로드
+  Future<void> _loadUserInfoInBackground(String userBarcode) async {
+    try {
+      final userInfo = await _authService.fetchUserInfo(userBarcode);
+
+      // SharedPreferences에도 저장
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userName', userInfo.userName);
+      await prefs.setInt('userPoint', userInfo.userPoint);
+
+      _userInfo = userInfo;
+      notifyListeners();
+
+      _logger.info('✅ 백그라운드 사용자 정보 로드 완료: ${userInfo.userName}');
+    } catch (e) {
+      _logger.severe('❌ 백그라운드 사용자 정보 로드 실패: $e');
+      // 사용자에게 알리지 않음 — 바코드 스캔은 계속 가능
     }
   }
 
