@@ -31,6 +31,21 @@ final GlobalKey<NavigatorState> globalNavigatorKey =
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+class _NoAnimationPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoAnimationPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -111,6 +126,16 @@ Future<void> main() async {
         theme: ThemeData(
           fontFamily: GoogleFonts.notoSans().fontFamily,
           textTheme: GoogleFonts.notoSansTextTheme(),
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.iOS: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.linux: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.macOS: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.windows: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.fuchsia: _NoAnimationPageTransitionsBuilder(),
+            },
+          ),
         ),
 
         initialRoute: '/',
