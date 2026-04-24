@@ -55,6 +55,30 @@ lib/
 | `KioskConfigService` | service | `lib/services/kiosk_config_service.dart` | Kiosk identity and config |
 | `Home` | widget | `lib/ui/home/home.dart` | Main screen after auth |
 
+## GIT CONVENTIONS
+
+### 커밋 메시지
+- **스타일**: Semantic (한국어) — `type: 설명`
+- **타입**: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `style`, `perf`, `build`, `ci`
+- **언어**: 한국어 (본문 포함)
+- **예시**:
+  - `feat: API 응답 시간 측정 로깅 추가`
+  - `fix: 결제 취소 시 장바구니 복귀 및 주문 상태 폴링 주기 0.1초로 변경`
+  - `chore: AGENTS.md 계층적 지식 베이스 추가`
+- **규칙**: 타입은 영어, 설명은 한국어. 여러 파일 변경 시 모듈/관심사별로 분리 커밋.
+
+### 브랜치 네이밍
+- **기능**: `feature/설명` 또는 `scope/설명` (kebab-case)
+- **예시**:
+  - `feature/api-response-logging`
+  - `order/status-checking-with-sse`
+  - `improved-payment-apply`
+- **기본 브랜치**: `develop` (PR 머지 대상)
+
+### PR
+- `develop` ← 브랜치 방향으로 PR 생성
+- PR 제목도 한국어 + semantic 스타일 권장
+
 ## CONVENTIONS
 
 - **State**: Provider + ChangeNotifier exclusively. No BLoC/Riverpod.
