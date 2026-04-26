@@ -251,6 +251,7 @@ class PaymentService {
       '${_apiClient.apiConfig.API_HOST}${ApiEndpoints.getOrderStatusStream(orderId)}',
     );
 
+    // 명세서: PERMIT_ALL — 인증 불필요
     final request = http.Request('GET', uri);
     request.headers['Accept'] = 'text/event-stream';
     request.headers['Cache-Control'] = 'no-cache';
@@ -300,19 +301,29 @@ class PaymentService {
           eventType = null;
           eventData = null;
 
-          if (data != null) {
+          // 명세서: event 필드가 필수, data는 옵션
+          if (type != null) {
             eventStopwatch.stop();
+
             final Map<String, dynamic> json;
-            try {
-              json = jsonDecode(data) as Map<String, dynamic>;
-            } catch (e) {
-              _logger.severe('❌ SSE 데이터 파싱 실패 - event: ${type ?? '-'}, data: $data, error: $e');
-              continue;
+            if (data != null && data.isNotEmpty) {
+              try {
+                json = jsonDecode(data) as Map<String, dynamic>;
+              } catch (e) {
+                _logger.severe('❌ SSE 데이터 파싱 실패 - event: $type, data: $data, error: $e');
+                continue;
+              }
+            } else {
+              json = {};
             }
 
-            final status = OrderStatusResponse.fromJson(json);
+            final status = OrderStatusResponse.fromSseEvent(
+              orderId: orderId,
+              eventType: type,
+              data: json,
+            );
             _logger.info(
-              '⏱️ [SSE] 이벤트 수신 - event: ${type ?? '-'}, status: ${status.status}, '
+              '⏱️ [SSE] 이벤트 수신 - event: $type, status: ${status.status}, '
               '${eventStopwatch.elapsedMilliseconds}ms',
             );
             yield status;
