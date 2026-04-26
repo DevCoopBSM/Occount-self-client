@@ -19,23 +19,36 @@ class AuthService {
   ///
   /// 요청 필드명 변경: userCode → userBarcode
 
-  /// Step 1만 수행 — 토큰 획득 후 즉시 반환
-  /// UI에서 빠른 화면 전환을 위해 사용자 정보 조회를 분리
-  Future<String> loginForToken(String userBarcode, String userPin) async {
+  Future<String> requestLoginToken(String userBarcode, String userPin) async {
     try {
-      final token = await _apiClient.postForHeader(
+      return await _apiClient.postForHeader(
         ApiEndpoints.login,
         {
           'userBarcode': userBarcode,
           'userPin': userPin,
         },
       );
+    } catch (e) {
+      _logger.severe('❌ 로그인 토큰 요청 실패 (타입: ${e.runtimeType}): $e');
+      if (e is ApiException) {
+        rethrow;
+      }
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError);
+    }
+  }
 
-      // Step 2 & 3을 위해 토큰을 미리 SharedPreferences에 저장
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('accessToken', token);
+  Future<void> persistAccessToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('accessToken', token);
+    _logger.info('🔑 토큰 저장 완료');
+  }
 
-      _logger.info('🔑 토큰 저장 완료');
+  /// Step 1만 수행 — 토큰 획득 후 즉시 반환
+  /// UI에서 빠른 화면 전환을 위해 사용자 정보 조회를 분리
+  Future<String> loginForToken(String userBarcode, String userPin) async {
+    try {
+      final token = await requestLoginToken(userBarcode, userPin);
+      await persistAccessToken(token);
       return token;
     } catch (e) {
       _logger.severe('❌ 로그인(토큰 획득) 실패 (타입: ${e.runtimeType}): $e');

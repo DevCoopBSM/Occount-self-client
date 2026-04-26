@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../provider/auth_provider.dart';
@@ -13,9 +15,37 @@ class PinPage extends StatefulWidget {
 }
 
 class _PinPageState extends State<PinPage> {
+  static const Duration _prefetchDebounce = Duration(milliseconds: 150);
+
   String? _userCode;
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocus = FocusNode();
+  Timer? _prefetchDebounceTimer;
+
+  void _handlePinChanged() {
+    final userCode = _userCode;
+    if (userCode == null) {
+      return;
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final pin = _pinController.text;
+
+    _prefetchDebounceTimer?.cancel();
+
+    if (pin.length >= 4 && pin.length <= 6) {
+      _prefetchDebounceTimer = Timer(_prefetchDebounce, () {
+        if (!mounted) {
+          return;
+        }
+
+        authProvider.prefetchLogin(userCode, pin);
+      });
+      return;
+    }
+
+    authProvider.clearPrefetchedLogin();
+  }
 
   void onNumberButtonPressed(int number, TextEditingController controller) {
     if (controller.text.length < 6) {
@@ -51,6 +81,14 @@ class _PinPageState extends State<PinPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('핀 번호를 입력해주세요')),
+      );
+      return;
+    }
+
+    if (pin.length < 4 || pin.length > 6) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('핀 번호는 4자리 이상 6자리 이하로 입력해주세요')),
       );
       return;
     }
@@ -135,6 +173,7 @@ class _PinPageState extends State<PinPage> {
   @override
   void initState() {
     super.initState();
+    _pinController.addListener(_handlePinChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args != null && args is String) {
@@ -273,12 +312,15 @@ class _PinPageState extends State<PinPage> {
                                       color: DevCoopColors.black,
                                       fontSize: 24,
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return '핀 번호를 입력해주세요';
-                                      }
-                                      return null;
-                                    },
+                                     validator: (value) {
+                                       if (value == null || value.isEmpty) {
+                                         return '핀 번호를 입력해주세요';
+                                       }
+                                       if (value.length < 4 || value.length > 6) {
+                                         return '핀 번호는 4자리 이상 6자리 이하로 입력해주세요';
+                                       }
+                                       return null;
+                                     },
                                     onFieldSubmitted: (value) {
                                       _handleSubmit();
                                     },
@@ -335,6 +377,9 @@ class _PinPageState extends State<PinPage> {
 
   @override
   void dispose() {
+    _prefetchDebounceTimer?.cancel();
+    Provider.of<AuthProvider>(context, listen: false).clearPrefetchedLogin();
+    _pinController.removeListener(_handlePinChanged);
     _pinController.dispose();
     _pinFocus.dispose();
     super.dispose();

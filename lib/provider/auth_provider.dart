@@ -6,11 +6,24 @@ import '../services/auth_service.dart';
 import '../services/kiosk_config_service.dart';
 import '../exception/api_exception.dart';
 import '../models/user_info.dart';
-import '../models/auth_response.dart';
 import '../models/login_result.dart';
 import '../models/cart_item.dart';
 import '../main.dart';
 import '../ui/components/session_expired_dialog.dart';
+
+class _PrefetchedLoginResult {
+  const _PrefetchedLoginResult({
+    required this.success,
+    this.token,
+    this.message,
+    this.errorCode,
+  });
+
+  final bool success;
+  final String? token;
+  final String? message;
+  final String? errorCode;
+}
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService;
@@ -47,6 +60,9 @@ class AuthProvider with ChangeNotifier {
   static const int sessionTimeoutSeconds = 300;
   Timer? _sessionTimer;
   bool _isSessionExpired = false;
+  String? _prefetchedLoginKey;
+  Future<_PrefetchedLoginResult>? _prefetchedLoginFuture;
+  _PrefetchedLoginResult? _prefetchedLoginResult;
 
   AuthProvider(this._authService, this._kioskConfigService) {
     _initialize();
@@ -104,8 +120,34 @@ class AuthProvider with ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      // Step 1: 토큰만 획득 (빠른 화면 전환)
-      final token = await _authService.loginForToken(codeNumber, pin);
+      final loginKey = _buildPrefetchKey(codeNumber, pin);
+      final prefetchedFuture = _prefetchedLoginKey == loginKey
+          ? _prefetchedLoginFuture
+          : null;
+      final prefetchedResult = _prefetchedLoginKey == loginKey
+          ? _prefetchedLoginResult
+          : null;
+
+      final tokenResult = prefetchedResult ??
+          (prefetchedFuture != null
+              ? await prefetchedFuture
+              : await _requestLoginToken(codeNumber, pin));
+
+      _resetPrefetchedLogin();
+
+      if (!tokenResult.success || tokenResult.token == null) {
+        _isLoading = false;
+        _error = tokenResult.message ?? '로그인에 실패했습니다';
+
+        if (tokenResult.errorCode == 'DEFAULT_PIN_IN_USE') {
+          _error = tokenResult.errorCode;
+        }
+
+        notifyListeners();
+        return LoginResult(success: false, message: tokenResult.message ?? _error);
+      }
+
+      await _authService.persistAccessToken(tokenResult.token!);
 
       // userCode 저장 (accessToken은 loginForToken에서 이미 저장됨)
       final prefs = await SharedPreferences.getInstance();
@@ -127,6 +169,7 @@ class AuthProvider with ChangeNotifier {
 
       return LoginResult(success: true);
     } catch (e) {
+      _resetPrefetchedLogin();
       _isLoading = false;
       _logger.severe('❌ login() catch (타입: ${e.runtimeType}): $e');
 
@@ -156,6 +199,74 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  void prefetchLogin(String codeNumber, String pin) {
+    if (pin.length < 4 || pin.length > 6) {
+      _resetPrefetchedLogin();
+      return;
+    }
+
+    final loginKey = _buildPrefetchKey(codeNumber, pin);
+    if (_prefetchedLoginKey == loginKey &&
+        (_prefetchedLoginFuture != null || _prefetchedLoginResult != null)) {
+      return;
+    }
+
+    _prefetchedLoginKey = loginKey;
+    _prefetchedLoginResult = null;
+
+    final future = _requestLoginToken(codeNumber, pin);
+    _prefetchedLoginFuture = future;
+
+    future.then((result) {
+      if (_prefetchedLoginKey == loginKey) {
+        _prefetchedLoginResult = result;
+      }
+
+      if (identical(_prefetchedLoginFuture, future)) {
+        _prefetchedLoginFuture = null;
+      }
+    });
+  }
+
+  void clearPrefetchedLogin() {
+    _resetPrefetchedLogin();
+  }
+
+  String _buildPrefetchKey(String codeNumber, String pin) {
+    return '$codeNumber::$pin';
+  }
+
+  Future<_PrefetchedLoginResult> _requestLoginToken(
+    String codeNumber,
+    String pin,
+  ) async {
+    try {
+      final token = await _authService.requestLoginToken(codeNumber, pin);
+      return _PrefetchedLoginResult(success: true, token: token);
+    } catch (e) {
+      _logger.severe('❌ prefetch login token 실패 (타입: ${e.runtimeType}): $e');
+
+      if (e is ApiException) {
+        return _PrefetchedLoginResult(
+          success: false,
+          message: e.message,
+          errorCode: e.code.code,
+        );
+      }
+
+      return const _PrefetchedLoginResult(
+        success: false,
+        message: '네트워크 오류가 발생했습니다',
+      );
+    }
+  }
+
+  void _resetPrefetchedLogin() {
+    _prefetchedLoginKey = null;
+    _prefetchedLoginFuture = null;
+    _prefetchedLoginResult = null;
+  }
+
   /// 백그라운드에서 사용자 이름과 포인트를 비동기 로드
   Future<void> _loadUserInfoInBackground(String userBarcode) async {
     try {
@@ -174,21 +285,6 @@ class AuthProvider with ChangeNotifier {
       _logger.severe('❌ 백그라운드 사용자 정보 로드 실패: $e');
       // 사용자에게 알리지 않음 — 바코드 스캔은 계속 가능
     }
-  }
-
-  Future<void> _saveUserData(AuthResponse response) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('accessToken', response.token);
-    await prefs.setString('userCode', response.userInfo.userCode);
-    await prefs.setString('userName', response.userInfo.userName);
-    await prefs.setInt('userPoint', response.userInfo.userPoint);
-    await prefs.setString('userNumber', response.userInfo.userNumber);
-
-    _userInfo = response.userInfo;
-    _isLoggedIn = true;
-    _isLoading = false;
-    _startSessionTimer();
-    notifyListeners();
   }
 
   void _startSessionTimer() {
@@ -334,6 +430,7 @@ class AuthProvider with ChangeNotifier {
 
   void resetState() {
     _cancelSessionTimer();
+    _resetPrefetchedLogin();
     _isLoading = false;
     _error = null;
     _isLoggedIn = false;
