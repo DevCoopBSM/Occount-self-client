@@ -89,40 +89,20 @@ class PaymentService {
         _logger.info('👤 [ORDER API] 게스트 모드로 주문 생성');
       }
 
-      // 명세서: kioskId는 요청 본문 필수값
-      final kioskId = await _kioskConfigService.getKioskId();
-      if (kioskId == null || kioskId.isEmpty) {
-        throw PaymentException(
-          code: 'KIOSK_ID_MISSING',
-          message: '키오스크 ID가 설정되지 않았습니다.',
-          status: 400,
-        );
-      }
-      _logger.info('🏪 [ORDER API] 키오스크 ID: $kioskId');
-
       // 주문 생성
-      final totalAmount = items.fold<int>(
-        0,
-        (sum, item) => sum + (item.itemPrice * item.quantity),
-      );
       final orderRequest = OrderRequest(
-        orderInfos: items
+        items: items
             .map((item) => OrderItem(
                   itemId: item.itemId,
-                  itemName: item.itemName,
-                  itemPrice: item.itemPrice,
                   quantity: item.quantity,
                 ))
             .toList(),
-        totalAmount: totalAmount,
-        kioskId: kioskId,
       );
 
       // 🔍 디버깅: 요청 내용 상세 로그
       final requestBody = orderRequest.toJson();
       _logger.info('📤 [ORDER API] ========== 주문 요청 시작 ==========');
       _logger.info('📤 [ORDER API] 요청 URL: ${ApiEndpoints.createOrder}');
-      _logger.info('📤 [ORDER API] 키오스크 ID: $kioskId');
       _logger.info('📤 [ORDER API] 게스트 모드: $isGuestMode');
       _logger.info('📤 [ORDER API] 인증 필요: ${!isGuestMode}');
       _logger.info('📤 [ORDER API] 전체 요청 Body: $requestBody');
@@ -135,7 +115,6 @@ class PaymentService {
             '📤 [ORDER API] 상품[$i]: ID=${item.itemId}, 코드="${item.itemCode}", 이름="${item.itemName}", 수량=${item.quantity}, 가격=${item.itemPrice}, 카테고리="${item.itemCategory}"');
       }
 
-      _logger.info('📤 [ORDER API] 총 주문 금액: $totalAmount원');
       _logger.info('📤 [ORDER API] ========================================');
 
       final response = await _apiClient.post<OrderStatusResponse>(
