@@ -9,8 +9,8 @@ class TopItemResponse {
 
   factory TopItemResponse.fromJson(Map<String, dynamic> json) {
     return TopItemResponse(
-      itemName: json['itemName'] as String,
-      totalSales: json['totalSales'] as int,
+      itemName: json['item_name'] as String,
+      totalSales: json['total_sales'] as int,
     );
   }
 }

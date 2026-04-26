@@ -39,17 +39,17 @@ class PaymentResponse {
       // 명세서: type은 'POINT' 또는 'MIXED'
       type: json['type'] ?? '',
       // 명세서 변경: 'chargedAmount' → 'cardAmount' (혼합결제 시 카드 결제 금액)
-      chargedAmount: json['cardAmount'] ?? 0,
+      chargedAmount: json['card_amount'] ?? 0,
       // 명세서에서 balanceAfterCharge 제거됨
       balanceAfterCharge: 0,
       // 명세서 변경: 카드 승인번호는 approvalNumber (MIXED인 경우에만 존재)
-      approvalNumber: json['approvalNumber'] ?? '',
-      remainingPoints: json['remainingPoints'] ?? 0,
-      totalAmount: json['totalAmount'] ?? 0,
+      approvalNumber: json['approval_number'] ?? '',
+      remainingPoints: json['remaining_points'] ?? 0,
+      totalAmount: json['total_amount'] ?? 0,
       // 명세서 신규 필드: 사용한 포인트
-      pointsUsed: json['pointsUsed'] ?? 0,
+      pointsUsed: json['points_used'] ?? 0,
       // 명세서 신규 필드: 결제 로그 ID (영수증 출력 등 후처리용)
-      paymentLogId: json['paymentLogId'] as int?,
+      paymentLogId: json['payment_log_id'] as int?,
     );
   }
 
@@ -58,12 +58,12 @@ class PaymentResponse {
       'status': success ? 'SUCCESS' : 'FAIL',
       'message': message,
       'type': type,
-      'cardAmount': chargedAmount,
-      'approvalNumber': approvalNumber,
-      'remainingPoints': remainingPoints,
-      'totalAmount': totalAmount,
-      'pointsUsed': pointsUsed,
-      'paymentLogId': paymentLogId,
+      'card_amount': chargedAmount,
+      'approval_number': approvalNumber,
+      'remaining_points': remainingPoints,
+      'total_amount': totalAmount,
+      'points_used': pointsUsed,
+      'payment_log_id': paymentLogId,
     };
   }
 }

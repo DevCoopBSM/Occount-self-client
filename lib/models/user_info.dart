@@ -22,19 +22,19 @@ class UserInfo {
 
   factory UserInfo.fromJson(Map<String, dynamic> json) {
     return UserInfo(
-      userCode: json['userCode'] as String,
-      userName: json['userName'] as String,
-      userNumber: json['userNumber'] as String,
-      userPoint: json['userPoint'] as int,
+      userCode: json['user_code'] as String,
+      userName: json['user_name'] as String,
+      userNumber: json['user_number'] as String,
+      userPoint: json['user_point'] as int,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'userCode': userCode,
-      'userName': userName,
-      'userNumber': userNumber,
-      'userPoint': userPoint,
+      'user_code': userCode,
+      'user_name': userName,
+      'user_number': userNumber,
+      'user_point': userPoint,
     };
   }
 }
