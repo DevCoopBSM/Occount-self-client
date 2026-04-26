@@ -15,11 +15,11 @@ class Category {
 
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(
-      itemId: json['itemId'] as int,
-      itemCode: json['itemCode'] as String,
-      itemName: json['itemName'] as String,
-      itemPrice: json['itemPrice'] as int,
-      eventStatus: json['eventStatus'] as String?,
+      itemId: json['item_id'] as int,
+      itemCode: json['item_code'] as String,
+      itemName: json['item_name'] as String,
+      itemPrice: json['item_price'] as int,
+      eventStatus: json['event_status'] as String?,
     );
   }
 }

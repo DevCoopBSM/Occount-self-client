@@ -16,7 +16,7 @@ class AuthResponse {
   Map<String, dynamic> toJson() {
     return {
       'token': token,
-      'userInfo': userInfo.toJson(),
+      'user_info': userInfo.toJson(),
     };
   }
 }

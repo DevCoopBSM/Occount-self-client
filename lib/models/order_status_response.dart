@@ -41,15 +41,15 @@ class OrderStatusResponse {
 
   factory OrderStatusResponse.fromJson(Map<String, dynamic> json) {
     return OrderStatusResponse(
-      orderId: json['orderId'] as String? ?? '',
+      orderId: json['order_id'] as String? ?? '',
       status: json['status'] as String? ?? OrderStatus.failed,
-      failureReason: json['failureReason'] as String?,
+      failureReason: json['failure_reason'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'orderId': orderId,
+        'order_id': orderId,
         'status': status,
-        'failureReason': failureReason,
+        'failure_reason': failureReason,
       };
 }

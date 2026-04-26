@@ -6,8 +6,8 @@ class NonBarcodeItem {
 
   factory NonBarcodeItem.fromJson(Map<String, dynamic> json) {
     return NonBarcodeItem(
-      itemName: json['itemName'],
-      itemPrice: json['itemPrice'],
+      itemName: json['item_name'],
+      itemPrice: json['item_price'],
     );
   }
 }

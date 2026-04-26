@@ -41,7 +41,7 @@ class PaymentInfo {
 
   Map<String, dynamic> toJson() => {
         'items': items.map((item) => item.toJson()).toList(),
-        'totalAmount': totalAmount,
+        'total_amount': totalAmount,
       };
 }
 
@@ -63,11 +63,11 @@ class PaymentItem {
 
   Map<String, dynamic> toJson() => {
         // 명세서: itemId는 반드시 String으로 직렬화
-        'itemId': itemId,
-        'itemName': itemName,
-        'itemPrice': itemPrice,
+        'item_id': itemId,
+        'item_name': itemName,
+        'item_price': itemPrice,
         'quantity': quantity,
-        'totalPrice': totalPrice,
+        'total_price': totalPrice,
       };
 
   factory PaymentItem.fromCartItem(CartItem item) {

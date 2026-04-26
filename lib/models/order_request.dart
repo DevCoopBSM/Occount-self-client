@@ -23,9 +23,9 @@ class OrderRequest {
 
   Map<String, dynamic> toJson() {
     return {
-      'orderInfos': orderInfos.map((e) => e.toJson()).toList(),
-      'totalAmount': totalAmount,
-      'kioskId': int.tryParse(kioskId) ?? kioskId,
+      'order_infos': orderInfos.map((e) => e.toJson()).toList(),
+      'total_amount': totalAmount,
+      'kiosk_id': int.tryParse(kioskId) ?? kioskId,
     };
   }
 }
@@ -44,9 +44,9 @@ class OrderItem {
   });
 
   Map<String, dynamic> toJson() => {
-        'itemId': itemId,
-        'itemName': itemName,
-        'itemPrice': itemPrice,
+        'item_id': itemId,
+        'item_name': itemName,
+        'item_price': itemPrice,
         'quantity': quantity,
       };
 }

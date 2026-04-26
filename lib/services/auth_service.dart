@@ -24,8 +24,8 @@ class AuthService {
       return await _apiClient.postForHeader(
         ApiEndpoints.login,
         {
-          'userBarcode': userBarcode,
-          'userPin': userPin,
+          'user_barcode': userBarcode,
+          'user_pin': userPin,
         },
       );
     } catch (e) {
