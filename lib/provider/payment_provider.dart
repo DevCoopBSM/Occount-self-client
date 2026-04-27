@@ -176,6 +176,7 @@ class PaymentProvider extends ChangeNotifier {
       }
 
       if (_cancelRequested) {
+        _logger.info('🚫 [CANCEL] 주문 생성 후 취소 요청 감지 - cancelRequested 처리');
         if (!context.mounted) {
           return;
         }
@@ -366,15 +367,24 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   Future<void> cancelPayment(BuildContext context) async {
+    _logger.info(
+      '🚫 [CANCEL] cancelPayment 호출 - '
+      'isCancellationInProgress: $_isCancellationInProgress, '
+      'currentOrderId: $_currentOrderId',
+    );
+
     if (_isCancellationInProgress) {
+      _logger.info('🚫 [CANCEL] 이미 취소 진행 중 - 무시');
       return;
     }
 
     if (_currentOrderId == null) {
       _cancelRequested = true;
-      _logger.info('🕒 주문 생성 응답 대기 중 - 생성 완료 후 취소 요청 예정');
+      _logger.info('🚫 [CANCEL] 주문 생성 대기 중 - cancelRequested = true');
       return;
     }
+
+    _logger.info('🚫 [CANCEL] _cancelCurrentOrder 호출 시작');
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -624,8 +634,12 @@ class PaymentProvider extends ChangeNotifier {
     required int flowId,
   }) async {
     final orderId = _currentOrderId;
+    _logger.info(
+      '🚫 [CANCEL] _cancelCurrentOrder 진입 - orderId: $orderId',
+    );
     if (orderId == null) {
       _cancelRequested = true;
+      _logger.info('🚫 [CANCEL] orderId가 null - cancelRequested = true');
       return;
     }
 
