@@ -95,9 +95,8 @@ class _PinChangeState extends State<PinChange> {
 
   @override
   Widget build(BuildContext context) {
-    return ScreenUtilInit(
-      builder: (context, child) => Scaffold(
-        body: Container(
+    return Scaffold(
+      body: Container(
           margin: const EdgeInsets.symmetric(
             vertical: 30,
             horizontal: 90,
@@ -382,7 +381,6 @@ class _PinChangeState extends State<PinChange> {
             ),
           ),
         ),
-      ),
     );
   }
 }

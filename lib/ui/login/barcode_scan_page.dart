@@ -6,7 +6,6 @@ import '../_constant/theme/devcoop_colors.dart';
 import 'package:provider/provider.dart';
 import '../../provider/auth_provider.dart';
 import '../../services/kiosk_config_service.dart';
-
 class BarcodeScanPage extends StatefulWidget {
   const BarcodeScanPage({Key? key}) : super(key: key);
 
@@ -92,8 +91,7 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
 
   @override
   Widget build(BuildContext context) {
-    return ScreenUtilInit(
-      builder: (context, child) => Scaffold(
+    return Scaffold(
         body: PopScope(
           onPopInvokedWithResult: (bool didPop, Object? result) async {
             FocusScope.of(context).requestFocus(_barcodeFocus);
@@ -192,13 +190,12 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                         ],
                       ),
                     ],
-                  ),
+                  )
                 ),
-              ),
+              )
             ),
           ),
         ),
-      ),
-    );
+       );
   }
 }

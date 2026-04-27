@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'provider/auth_provider.dart';
 import 'provider/payment_provider.dart';
@@ -110,12 +111,15 @@ Future<void> main() async {
   ];
 
   runApp(
-    MultiProvider(
-      providers: [
-        ...serviceProviders,
-        ...stateProviders,
-      ],
-      child: MaterialApp(
+    ScreenUtilInit(
+      designSize: const Size(1080, 1920),
+      minTextAdapt: true,
+      child: MultiProvider(
+        providers: [
+          ...serviceProviders,
+          ...stateProviders,
+        ],
+        child: MaterialApp(
         navigatorKey: globalNavigatorKey,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
 
@@ -160,6 +164,7 @@ Future<void> main() async {
           '/admin': (context) => const KioskConfigPage(),
         },
       ),
+    ),
     ),
   );
 }
