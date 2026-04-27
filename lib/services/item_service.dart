@@ -61,7 +61,16 @@ class ItemService {
     }
   }
 
-  /// 바코드 상품 캐시 초기화
+  /// 특정 바코드 상품 캐시 제거 (장바구니에서 수량 0이 된 경우)
+  void removeItemFromCache(String itemCode) {
+    final normalized = normalizeBarcode(itemCode);
+    final removed = _itemByCodeCache.remove(normalized);
+    if (removed != null) {
+      _logger.info('🗑️ [ITEM API] 바코드 상품 캐시 제거: $normalized → ${removed.itemName}');
+    }
+  }
+
+  /// 바코드 상품 캐시 전체 초기화
   void clearItemCache() {
     _itemByCodeCache.clear();
     _logger.info('🗑️ [ITEM API] 바코드 상품 캐시 초기화됨');
