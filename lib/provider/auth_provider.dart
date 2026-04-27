@@ -66,7 +66,7 @@ class AuthProvider with ChangeNotifier {
   Future<_PrefetchedLoginResult>? _prefetchedLoginFuture;
   _PrefetchedLoginResult? _prefetchedLoginResult;
 
-  AuthProvider(this._authService, this._kioskConfigService) {
+  AuthProvider(this._authService, this._kioskConfigService, this._itemService) {
     _initialize();
   }
 
