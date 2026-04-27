@@ -23,7 +23,7 @@ class BarcodeInputState extends State<BarcodeInput>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _restoreBarcodeFocus();
+    restoreBarcodeFocus();
   }
 
   @override
@@ -31,11 +31,11 @@ class BarcodeInputState extends State<BarcodeInput>
     super.didChangeAppLifecycleState(state);
 
     if (state == AppLifecycleState.resumed) {
-      _restoreBarcodeFocus();
+      restoreBarcodeFocus();
     }
   }
 
-  void _restoreBarcodeFocus() {
+  void restoreBarcodeFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       FocusScope.of(context).requestFocus(barcodeFocus);
@@ -85,7 +85,7 @@ class BarcodeInputState extends State<BarcodeInput>
 
     if (mounted) {
       _barcodeController.clear();
-      _restoreBarcodeFocus();
+      restoreBarcodeFocus();
     }
   }
 
@@ -154,7 +154,7 @@ class BarcodeInputState extends State<BarcodeInput>
                         context: context,
                         builder: (context) => const NonBarcodeDialog(),
                       );
-                      _restoreBarcodeFocus();
+                      restoreBarcodeFocus();
                     },
                   ),
                 ),
@@ -181,7 +181,7 @@ class BarcodeInputState extends State<BarcodeInput>
                         context: context,
                         builder: (context) => const AllItemsDialog(),
                       );
-                      _restoreBarcodeFocus();
+                      restoreBarcodeFocus();
                     },
                   ),
                 ),

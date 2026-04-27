@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../main.dart';
 import '../../provider/auth_provider.dart';
 import '../_constant/component/button.dart';
 import '../_constant/theme/devcoop_text_style.dart';
@@ -111,12 +112,7 @@ class _PinPageState extends State<PinPage> {
       if (!mounted) return;
 
       if (result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('로그인되었습니다'),
-            duration: Duration(milliseconds: 500),
-          ),
-        );
+        rootScaffoldMessengerKey.currentState?.hideCurrentSnackBar();
         Navigator.of(context)
             .pushNamedAndRemoveUntil('/payment', (route) => false);
       } else {
