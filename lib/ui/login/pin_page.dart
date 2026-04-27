@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../main.dart';
 import '../../provider/auth_provider.dart';
 import '../_constant/component/button.dart';
 import '../_constant/theme/devcoop_text_style.dart';
@@ -21,6 +22,13 @@ class _PinPageState extends State<PinPage> {
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocus = FocusNode();
   Timer? _prefetchDebounceTimer;
+
+  void _restorePinFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(_pinFocus);
+    });
+  }
 
   void _handlePinChanged() {
     final userCode = _userCode;
@@ -51,10 +59,13 @@ class _PinPageState extends State<PinPage> {
     if (controller.text.length < 6) {
       controller.text = controller.text + number.toString();
     }
+
+    _restorePinFocus();
   }
 
   void onClearPressed(TextEditingController controller) {
     controller.clear();
+    _restorePinFocus();
   }
 
   void onDeletePressed(TextEditingController controller) {
@@ -62,6 +73,8 @@ class _PinPageState extends State<PinPage> {
       controller.text =
           controller.text.substring(0, controller.text.length - 1);
     }
+
+    _restorePinFocus();
   }
 
   Future<void> _handleSubmit() async {
@@ -99,12 +112,7 @@ class _PinPageState extends State<PinPage> {
       if (!mounted) return;
 
       if (result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('로그인되었습니다'),
-            duration: Duration(milliseconds: 500),
-          ),
-        );
+        rootScaffoldMessengerKey.currentState?.hideCurrentSnackBar();
         Navigator.of(context)
             .pushNamedAndRemoveUntil('/payment', (route) => false);
       } else {
@@ -166,9 +174,8 @@ class _PinPageState extends State<PinPage> {
   }
 
   void _setActiveController(TextEditingController controller) {
-    FocusScope.of(context).requestFocus(_pinFocus);
+    _restorePinFocus();
   }
-
 
   @override
   void initState() {
@@ -180,11 +187,7 @@ class _PinPageState extends State<PinPage> {
         setState(() {
           _userCode = args;
         });
-        Future.microtask(() {
-          if (mounted) {
-            FocusScope.of(context).requestFocus(_pinFocus);
-          }
-        });
+        Future.microtask(_restorePinFocus);
       } else {
         Navigator.of(context).pushReplacementNamed('/');
       }
@@ -305,6 +308,7 @@ class _PinPageState extends State<PinPage> {
                                   ),
                                   child: TextFormField(
                                     obscureText: true,
+                                    autofocus: true,
                                     controller: _pinController,
                                     focusNode: _pinFocus,
                                     textAlign: TextAlign.center,
@@ -312,15 +316,16 @@ class _PinPageState extends State<PinPage> {
                                       color: DevCoopColors.black,
                                       fontSize: 24,
                                     ),
-                                     validator: (value) {
-                                       if (value == null || value.isEmpty) {
-                                         return '핀 번호를 입력해주세요';
-                                       }
-                                       if (value.length < 4 || value.length > 6) {
-                                         return '핀 번호는 4자리 이상 6자리 이하로 입력해주세요';
-                                       }
-                                       return null;
-                                     },
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return '핀 번호를 입력해주세요';
+                                      }
+                                      if (value.length < 4 ||
+                                          value.length > 6) {
+                                        return '핀 번호는 4자리 이상 6자리 이하로 입력해주세요';
+                                      }
+                                      return null;
+                                    },
                                     onFieldSubmitted: (value) {
                                       _handleSubmit();
                                     },

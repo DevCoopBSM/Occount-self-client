@@ -8,8 +8,39 @@ import 'widgets/payment_action_buttons.dart';
 import 'widgets/payment_summary.dart';
 import 'widgets/barcode_input.dart';
 
-class PaymentPage extends StatelessWidget {
+class PaymentPage extends StatefulWidget {
   const PaymentPage({Key? key}) : super(key: key);
+
+  @override
+  State<PaymentPage> createState() => _PaymentPageState();
+}
+
+class _PaymentPageState extends State<PaymentPage> {
+  final GlobalKey<BarcodeInputState> _barcodeInputKey =
+      GlobalKey<BarcodeInputState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreBarcodeFocus();
+  }
+
+  void _restoreBarcodeFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _barcodeInputKey.currentState?.restoreBarcodeFocus();
+    });
+
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+      _barcodeInputKey.currentState?.restoreBarcodeFocus();
+    });
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      _barcodeInputKey.currentState?.restoreBarcodeFocus();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +61,7 @@ class PaymentPage extends StatelessWidget {
                   userInfo: authProvider.userInfo,
                 ),
                 const SizedBox(height: 20),
-                const BarcodeInput(),
+                BarcodeInput(key: _barcodeInputKey),
                 const SizedBox(height: 10),
                 const PaymentItemHeader(),
                 const SizedBox(height: 10),
