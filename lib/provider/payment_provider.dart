@@ -647,7 +647,12 @@ class PaymentProvider extends ChangeNotifier {
       cancelResponse = await _paymentService.getOrderStatus(orderId);
     }
 
-    final finalStatus = cancelResponse.isTerminal
+    // 취소 API 응답이 CANCEL_REQUESTED이면 즉시 취소 완료로 처리 (SSE 대기 불필요)
+    final isCancelCompleted =
+        cancelResponse.status == OrderStatus.cancelRequested ||
+            cancelResponse.status == OrderStatus.cancelled;
+
+    final finalStatus = (cancelResponse.isTerminal || isCancelCompleted)
         ? cancelResponse
         : await _paymentService.watchOrderStatus(orderId).last;
 
