@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
 import '../services/auth_service.dart';
 import '../services/kiosk_config_service.dart';
+import '../services/item_service.dart';
 import '../exception/api_exception.dart';
 import '../models/user_info.dart';
 import '../models/login_result.dart';
@@ -28,6 +29,7 @@ class _PrefetchedLoginResult {
 class AuthProvider with ChangeNotifier {
   final AuthService _authService;
   final KioskConfigService _kioskConfigService;
+  final ItemService _itemService;
   final Logger _logger = Logger('AuthProvider');
   bool _isLoading = false;
   String? _error;
@@ -64,7 +66,7 @@ class AuthProvider with ChangeNotifier {
   Future<_PrefetchedLoginResult>? _prefetchedLoginFuture;
   _PrefetchedLoginResult? _prefetchedLoginResult;
 
-  AuthProvider(this._authService, this._kioskConfigService) {
+  AuthProvider(this._authService, this._kioskConfigService, this._itemService) {
     _initialize();
   }
 
@@ -420,11 +422,13 @@ class AuthProvider with ChangeNotifier {
 
   void removeFromCart(CartItem item) {
     _cartItems.remove(item);
+    _itemService.removeItemFromCache(item.itemCode);
     notifyListeners();
   }
 
   void clearCart() {
     _cartItems.clear();
+    _itemService.clearItemCache();
     notifyListeners();
   }
 
@@ -436,6 +440,7 @@ class AuthProvider with ChangeNotifier {
     _isLoggedIn = false;
     _isSessionExpired = false;
     _cartItems.clear();
+    _itemService.clearItemCache();
 
     if (_isGuestCheckoutOnlyEnabled) {
       _isGuestMode = true;
@@ -477,7 +482,9 @@ class AuthProvider with ChangeNotifier {
       if (_cartItems[index].quantity > 1) {
         _cartItems[index].quantity--;
       } else {
+        final itemCode = _cartItems[index].itemCode;
         _cartItems.removeAt(index);
+        _itemService.removeItemFromCache(itemCode);
       }
       notifyListeners();
     }

@@ -1,28 +1,37 @@
 OVERVIEW
-Library of 13 data models under lib/models used across auth, cart, orders, and payments.
+Library of 13 data models under lib/models used across auth, cart, orders, and payments. Plus 2 DTOs under lib/Dto/ (uppercase — intentional).
 
 WHERE TO LOOK
-auth_response.dart — Auth API response model
-cart_item.dart — Cart item with quantity, price, category
-category.dart — Product category model
-item_response.dart — Barcode item lookup response
-login_result.dart — Login result model
-non_barcode_item_response.dart — Non-barcode item data
-order_request.dart — Order creation request body
-order_status_response.dart — SSE order status response
-payment_request.dart — Payment execution request body
-payment_response.dart — Payment execution response
-top_item_response.dart — Top/popular item response
-top_item.dart — Top item domain model
-user_info.dart — User profile data
+auth_response.dart — Auth API response wrapper (token + UserInfo); toJson only
+cart_item.dart — Central cart model; converts from ItemResponse/NonBarcodeItemResponse; totalPrice getter, copyWith; no toJson
+category.dart — Product category model; fromJson only
+item_response.dart — Barcode item lookup response; fromJson/toJson; used by CartItem
+login_result.dart — Login result data holder; no serialization
+non_barcode_item_response.dart — Non-barcode item data; fromJson; used by CartItem
+order_request.dart — Order creation request; contains OrderItem; toJson
+order_status_response.dart — Order status: OrderStatus constants + OrderStatusResponse (isTerminal, fromSseEvent, fromJson/toJson)
+payment_request.dart — Payment execution request; PaymentType enum + PaymentInfo + PaymentItem; PaymentItem.fromCartItem; toJson
+payment_response.dart — Payment execution response; fromJson/toJson
+top_item_response.dart — Top/popular item response DTO; fromJson
+top_item.dart — Top item domain model; fromJson/toJson
+user_info.dart — User profile; fromJson/toJson; empty() factory
+
+DTOs (lib/Dto/)
+event_item_response_dto.dart — Event item DTO; fromJson
+non_barcode_item.dart — Non-barcode item payload; fromJson
+
+KEY RELATIONSHIPS
+- CartItem ← converts from ItemResponse and NonBarcodeItemResponse
+- PaymentRequest.PaymentItem ← built from CartItem via fromCartItem
+- OrderRequest.OrderItem ← extracted from cart items
+- AuthResponse ← wraps UserInfo
+
+SERIALIZATION
+- All models: manual fromJson/toJson (no codegen). freezed/json_serializable in pubspec but commented out.
+- When API contracts change, update both models and corresponding services.
 
 NOTES
-- Models are pure data carriers with API mappings used by Auth, Cart, and Payment flows.
-- Error payloads from server follow { "message": "ERROR_CODE" } structure.
-- Payment type determination follows: points >= total -> PAYMENT; otherwise MIXED (logic lives in related services).
-- Guest mode in API uses header X-Kiosk-Id instead of Bearer tokens for auth.
-- cart_item.dart is the central cart model consumed by AuthProvider and PaymentProvider.
-
-- Serialization in these models is implemented manually (no codegen) to keep the app lean.
-- Changes in API payloads should be reflected here and in corresponding services.
-- When API contracts change, update both models and the corresponding service mapping.
+- Error payloads from server follow `{ "message": "ERROR_CODE" }` structure.
+- Guest mode uses X-Kiosk-Id header instead of Bearer tokens.
+- CartItem is the central model consumed by AuthProvider (cart state) and PaymentProvider (payment flow).
+- Dto/ holds network-layer payloads; models/ holds domain models with business helpers.

@@ -90,6 +90,7 @@ Future<void> main() async {
       create: (context) => AuthProvider(
         context.read<AuthService>(),
         context.read<KioskConfigService>(),
+        context.read<ItemService>(),
       ),
     ),
     ChangeNotifierProvider<NavigationProvider>(

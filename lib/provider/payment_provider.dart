@@ -597,7 +597,6 @@ class PaymentProvider extends ChangeNotifier {
       pointsUsed: calculation.expectedPoints,
     );
 
-    await Future.delayed(const Duration(seconds: 2));
     if (!context.mounted) {
       return;
     }
