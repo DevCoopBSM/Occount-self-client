@@ -18,23 +18,51 @@ class AuthService {
   /// 3. GET /wallet/point → 현재 포인트 조회
   ///
   /// 요청 필드명 변경: userCode → userBarcode
-  Future<AuthResponse> login(String userBarcode, String userPin) async {
+
+  Future<String> requestLoginToken(String userBarcode, String userPin) async {
     try {
-      // Step 1: 로그인 — 토큰은 응답 body가 아닌 Authorization 헤더에 있음
-      final token = await _apiClient.postForHeader(
+      return await _apiClient.postForHeader(
         ApiEndpoints.login,
         {
-          // 명세서 변경: 'userCode' → 'userBarcode'
-          'userBarcode': userBarcode,
-          'userPin': userPin,
+          'user_barcode': userBarcode,
+          'user_pin': userPin,
         },
       );
-      // Step 2 & 3을 위해 토큰을 미리 SharedPreferences에 저장
-      // (인증이 필요한 /users/pre-order-info, /wallet/point 호출을 위함)
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('accessToken', token);
+    } catch (e) {
+      _logger.severe('❌ 로그인 토큰 요청 실패 (타입: ${e.runtimeType}): $e');
+      if (e is ApiException) {
+        rethrow;
+      }
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError);
+    }
+  }
 
-      _logger.info('🔑 토큰 저장 완료, 사용자 정보 조회 시작');
+  Future<void> persistAccessToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('accessToken', token);
+    _logger.info('🔑 토큰 저장 완료');
+  }
+
+  /// Step 1만 수행 — 토큰 획득 후 즉시 반환
+  /// UI에서 빠른 화면 전환을 위해 사용자 정보 조회를 분리
+  Future<String> loginForToken(String userBarcode, String userPin) async {
+    try {
+      final token = await requestLoginToken(userBarcode, userPin);
+      await persistAccessToken(token);
+      return token;
+    } catch (e) {
+      _logger.severe('❌ 로그인(토큰 획득) 실패 (타입: ${e.runtimeType}): $e');
+      if (e is ApiException) {
+        rethrow;
+      }
+      throw ApiException.fromErrorCode(ApiErrorCode.serverError);
+    }
+  }
+
+  /// Step 2 & 3 — 토큰 획득 후 백그라운드에서 사용자 정보 조회
+  Future<UserInfo> fetchUserInfo(String userBarcode) async {
+    try {
+      _logger.info('📋 사용자 정보 조회 시작');
 
       // Step 2: 사용자 이름 조회
       final username = await _apiClient.get(
@@ -52,30 +80,34 @@ class AuthService {
 
       _logger.info('✅ 사용자 정보 조회 완료: $username, $point points');
 
-      // 3단계 결과를 조합하여 AuthResponse 생성
-      // userCode 자리에 userBarcode 사용 (사용자 식별자로 활용)
-      // userNumber는 새 API에 없으므로 빈 문자열
-      final response = AuthResponse(
-        token: token,
-        userInfo: UserInfo(
-          userCode: userBarcode,
-          userName: username,
-          userNumber: '',
-          userPoint: point,
-        ),
+      return UserInfo(
+        userCode: userBarcode,
+        userName: username,
+        userNumber: '',
+        userPoint: point,
       );
-
-      _logger.info(
-          '✅ 로그인 전체 성공: ${response.userInfo.userName} (포인트: ${response.userInfo.userPoint})');
-      return response;
     } catch (e) {
-      _logger.severe('❌ 로그인 실패 (타입: ${e.runtimeType}): $e');
+      _logger.severe('❌ 사용자 정보 조회 실패 (타입: ${e.runtimeType}): $e');
       if (e is ApiException) {
-        _logger.severe('❌ ApiException - code: ${e.code}, message: ${e.message}, status: ${e.status}');
         rethrow;
       }
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
+  }
+
+  /// 전체 로그인 (토큰 + 사용자 정보) — 하위 호환용
+  Future<AuthResponse> login(String userBarcode, String userPin) async {
+    final token = await loginForToken(userBarcode, userPin);
+    final userInfo = await fetchUserInfo(userBarcode);
+
+    final response = AuthResponse(
+      token: token,
+      userInfo: userInfo,
+    );
+
+    _logger.info(
+        '✅ 로그인 전체 성공: ${response.userInfo.userName} (포인트: ${response.userInfo.userPoint})');
+    return response;
   }
 
   /// 현재 로그인된 사용자의 포인트 조회

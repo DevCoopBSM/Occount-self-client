@@ -17,7 +17,7 @@ class NonBarcodeItemResponse {
 
   factory NonBarcodeItemResponse.fromJson(Map<String, dynamic> json) {
     return NonBarcodeItemResponse(
-      itemId: json['itemId'] as int,
+      itemId: json['item_id'] as int,
       // 명세서 변경: 'itemCode' → 'barcode' (without-barcode 응답에서는 항상 null)
       itemCode: json['barcode'] as String? ?? '',
       // 명세서 변경: 'itemName' → 'name'

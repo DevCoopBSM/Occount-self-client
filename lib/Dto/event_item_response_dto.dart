@@ -14,8 +14,8 @@ class EventItemResponseDto {
   factory EventItemResponseDto.fromJson(Map<String, dynamic> json) {
     return EventItemResponseDto(
       barcode: json['barcode'],
-      itemName: json['itemName'],
-      itemPrice: json['itemPrice'],
+      itemName: json['item_name'],
+      itemPrice: json['item_price'],
       event: json['event'],
     );
   }

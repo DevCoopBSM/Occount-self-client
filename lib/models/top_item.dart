@@ -21,27 +21,27 @@ class TopItem {
 
   factory TopItem.fromJson(Map<String, dynamic> json) {
     return TopItem(
-      itemId: json['itemId'].toString(),
-      itemCode: json['itemCode'],
-      itemName: json['itemName'],
-      itemPrice: json['itemPrice'],
-      eventStatus: json['eventStatus'],
-      itemCategory: json['itemCategory'],
-      totalSales: json['totalSales'],
-      salesCount: json['salesCount'],
+      itemId: json['item_id'].toString(),
+      itemCode: json['item_code'],
+      itemName: json['item_name'],
+      itemPrice: json['item_price'],
+      eventStatus: json['event_status'],
+      itemCategory: json['item_category'],
+      totalSales: json['total_sales'],
+      salesCount: json['sales_count'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'itemId': itemId,
-      'itemCode': itemCode,
-      'itemName': itemName,
-      'itemPrice': itemPrice,
-      'eventStatus': eventStatus,
-      'itemCategory': itemCategory,
-      'totalSales': totalSales,
-      'salesCount': salesCount,
+      'item_id': itemId,
+      'item_code': itemCode,
+      'item_name': itemName,
+      'item_price': itemPrice,
+      'event_status': eventStatus,
+      'item_category': itemCategory,
+      'total_sales': totalSales,
+      'sales_count': salesCount,
     };
   }
 }

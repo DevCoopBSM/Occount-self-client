@@ -89,40 +89,20 @@ class PaymentService {
         _logger.info('👤 [ORDER API] 게스트 모드로 주문 생성');
       }
 
-      // 명세서: kioskId는 요청 본문 필수값
-      final kioskId = await _kioskConfigService.getKioskId();
-      if (kioskId == null || kioskId.isEmpty) {
-        throw PaymentException(
-          code: 'KIOSK_ID_MISSING',
-          message: '키오스크 ID가 설정되지 않았습니다.',
-          status: 400,
-        );
-      }
-      _logger.info('🏪 [ORDER API] 키오스크 ID: $kioskId');
-
       // 주문 생성
-      final totalAmount = items.fold<int>(
-        0,
-        (sum, item) => sum + (item.itemPrice * item.quantity),
-      );
       final orderRequest = OrderRequest(
-        orderInfos: items
+        items: items
             .map((item) => OrderItem(
                   itemId: item.itemId,
-                  itemName: item.itemName,
-                  itemPrice: item.itemPrice,
                   quantity: item.quantity,
                 ))
             .toList(),
-        totalAmount: totalAmount,
-        kioskId: kioskId,
       );
 
       // 🔍 디버깅: 요청 내용 상세 로그
       final requestBody = orderRequest.toJson();
       _logger.info('📤 [ORDER API] ========== 주문 요청 시작 ==========');
       _logger.info('📤 [ORDER API] 요청 URL: ${ApiEndpoints.createOrder}');
-      _logger.info('📤 [ORDER API] 키오스크 ID: $kioskId');
       _logger.info('📤 [ORDER API] 게스트 모드: $isGuestMode');
       _logger.info('📤 [ORDER API] 인증 필요: ${!isGuestMode}');
       _logger.info('📤 [ORDER API] 전체 요청 Body: $requestBody');
@@ -135,7 +115,6 @@ class PaymentService {
             '📤 [ORDER API] 상품[$i]: ID=${item.itemId}, 코드="${item.itemCode}", 이름="${item.itemName}", 수량=${item.quantity}, 가격=${item.itemPrice}, 카테고리="${item.itemCategory}"');
       }
 
-      _logger.info('📤 [ORDER API] 총 주문 금액: $totalAmount원');
       _logger.info('📤 [ORDER API] ========================================');
 
       final response = await _apiClient.post<OrderStatusResponse>(
@@ -214,11 +193,17 @@ class PaymentService {
   }) async* {
     const pollInterval = Duration(milliseconds: 500);
     final deadline = DateTime.now().add(timeout);
+    final pollStopwatch = Stopwatch()..start();
 
     while (true) {
       final status = await getOrderStatus(orderId);
-      _logger.info('📥 폴링 상태 수신 - orderId: $orderId, status: ${status.status}');
+      pollStopwatch.stop();
+      _logger.info(
+        '⏱️ [POLL] 상태 수신 - orderId: $orderId, status: ${status.status}, '
+        '${pollStopwatch.elapsedMilliseconds}ms',
+      );
       yield status;
+      pollStopwatch.reset();
 
       if (status.isTerminal) {
         _logger.info('✅ 폴링 완료 - orderId: $orderId, status: ${status.status}');
@@ -233,6 +218,7 @@ class PaymentService {
       }
 
       await Future.delayed(pollInterval);
+      pollStopwatch.start();
     }
   }
 
@@ -244,17 +230,25 @@ class PaymentService {
       '${_apiClient.apiConfig.API_HOST}${ApiEndpoints.getOrderStatusStream(orderId)}',
     );
 
+    // 명세서: PERMIT_ALL — 인증 불필요
     final request = http.Request('GET', uri);
     request.headers['Accept'] = 'text/event-stream';
     request.headers['Cache-Control'] = 'no-cache';
 
     _logger.info('📡 SSE 연결 시작 - orderId: $orderId, url: $uri');
 
+    final sseStopwatch = Stopwatch();
     http.StreamedResponse response;
     try {
+      sseStopwatch.start();
       response = await _apiClient.client.send(request);
+      sseStopwatch.stop();
+      _logger.info(
+        '⏱️ [SSE] 연결 수립 - ${sseStopwatch.elapsedMilliseconds}ms',
+      );
     } catch (e) {
-      _logger.severe('❌ SSE 연결 실패: $e');
+      sseStopwatch.stop();
+      _logger.severe('❌ SSE 연결 실패 (${sseStopwatch.elapsedMilliseconds}ms): $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError, 'SSE 연결 실패');
     }
 
@@ -266,6 +260,7 @@ class PaymentService {
     String leftover = '';
     String? eventType;
     String? eventData;
+    final eventStopwatch = Stopwatch();
 
     await for (final chunk in response.stream
         .transform(utf8.decoder)
@@ -285,23 +280,40 @@ class PaymentService {
           eventType = null;
           eventData = null;
 
-          if (data != null) {
+          // 명세서: event 필드가 필수, data는 옵션
+          if (type != null) {
+            eventStopwatch.stop();
+
             final Map<String, dynamic> json;
-            try {
-              json = jsonDecode(data) as Map<String, dynamic>;
-            } catch (e) {
-              _logger.severe('❌ SSE 데이터 파싱 실패 - event: ${type ?? '-'}, data: $data, error: $e');
-              continue;
+            if (data != null && data.isNotEmpty) {
+              try {
+                json = jsonDecode(data) as Map<String, dynamic>;
+              } catch (e) {
+                _logger.severe('❌ SSE 데이터 파싱 실패 - event: $type, data: $data, error: $e');
+                continue;
+              }
+            } else {
+              json = {};
             }
 
-            final status = OrderStatusResponse.fromJson(json);
-            _logger.info('📡 SSE 수신 - event: ${type ?? '-'}, status: ${status.status}');
+            final status = OrderStatusResponse.fromSseEvent(
+              orderId: orderId,
+              eventType: type,
+              data: json,
+            );
+            _logger.info(
+              '⏱️ [SSE] 이벤트 수신 - event: $type, status: ${status.status}, '
+              '${eventStopwatch.elapsedMilliseconds}ms',
+            );
             yield status;
 
             if (status.isTerminal) {
               _logger.info('✅ 주문 최종 상태 - orderId: $orderId, status: ${status.status}');
               return;
             }
+
+            eventStopwatch.reset();
+            eventStopwatch.start();
           }
         } else if (line.startsWith('event:')) {
           eventType = line.substring('event:'.length).trim();

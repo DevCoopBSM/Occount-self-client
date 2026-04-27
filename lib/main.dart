@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'provider/auth_provider.dart';
 import 'provider/payment_provider.dart';
@@ -30,6 +31,21 @@ final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
+
+class _NoAnimationPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoAnimationPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,12 +111,15 @@ Future<void> main() async {
   ];
 
   runApp(
-    MultiProvider(
-      providers: [
-        ...serviceProviders,
-        ...stateProviders,
-      ],
-      child: MaterialApp(
+    ScreenUtilInit(
+      designSize: const Size(1080, 1920),
+      minTextAdapt: true,
+      child: MultiProvider(
+        providers: [
+          ...serviceProviders,
+          ...stateProviders,
+        ],
+        child: MaterialApp(
         navigatorKey: globalNavigatorKey,
         scaffoldMessengerKey: rootScaffoldMessengerKey,
 
@@ -111,6 +130,16 @@ Future<void> main() async {
         theme: ThemeData(
           fontFamily: GoogleFonts.notoSans().fontFamily,
           textTheme: GoogleFonts.notoSansTextTheme(),
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.iOS: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.linux: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.macOS: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.windows: _NoAnimationPageTransitionsBuilder(),
+              TargetPlatform.fuchsia: _NoAnimationPageTransitionsBuilder(),
+            },
+          ),
         ),
 
         initialRoute: '/',
@@ -135,6 +164,7 @@ Future<void> main() async {
           '/admin': (context) => const KioskConfigPage(),
         },
       ),
+    ),
     ),
   );
 }

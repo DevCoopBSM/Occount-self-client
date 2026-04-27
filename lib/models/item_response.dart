@@ -17,7 +17,7 @@ class ItemResponse {
 
   factory ItemResponse.fromJson(Map<String, dynamic> json) {
     return ItemResponse(
-      itemId: json['itemId'] as int,
+      itemId: json['item_id'] as int,
       // 명세서 변경: 'itemCode' → 'barcode'
       itemCode: json['barcode'] as String? ?? '',
       // 명세서 변경: 'itemName' → 'name'
@@ -34,12 +34,12 @@ class ItemResponse {
 
   Map<String, dynamic> toJson() {
     return {
-      'itemId': itemId,
-      'itemCode': itemCode,
-      'itemName': itemName,
-      'itemPrice': itemPrice,
-      'itemCategory': itemCategory,
-      'eventStatus': eventStatus,
+      'item_id': itemId,
+      'item_code': itemCode,
+      'item_name': itemName,
+      'item_price': itemPrice,
+      'item_category': itemCategory,
+      'event_status': eventStatus,
     };
   }
 }

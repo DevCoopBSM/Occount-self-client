@@ -101,6 +101,7 @@ class PaymentProvider extends ChangeNotifier {
   Future<void> processPayment({
     required BuildContext context,
   }) async {
+    final totalStopwatch = Stopwatch()..start();
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     await _cancelOrderStatusSubscription();
     final flowId = ++_activePaymentFlowId;
@@ -124,6 +125,8 @@ class PaymentProvider extends ChangeNotifier {
     _currentOrderId = null;
     _cancelRequested = false;
     _isCancellationInProgress = false;
+
+    _logger.info('⏱️ [PAYMENT] 결제 프로세스 시작 - 상품 ${cartSnapshot.length}개');
 
     // 결제 진행 중 모달 표시
     if (context.mounted) {
@@ -156,9 +159,15 @@ class PaymentProvider extends ChangeNotifier {
         return;
       }
 
+      final orderCreationStopwatch = Stopwatch()..start();
       final createdOrder = await _paymentService.createOrder(
         items: cartSnapshot,
         isGuestMode: authProvider.isGuestMode,
+      );
+      orderCreationStopwatch.stop();
+      _logger.info(
+        '⏱️ [PAYMENT] 주문 생성 완료 - ${orderCreationStopwatch.elapsedMilliseconds}ms, '
+        'orderId: ${createdOrder.orderId}',
       );
       _currentOrderId = createdOrder.orderId;
 
@@ -167,6 +176,7 @@ class PaymentProvider extends ChangeNotifier {
       }
 
       if (_cancelRequested) {
+        _logger.info('🚫 [CANCEL] 주문 생성 후 취소 요청 감지 - cancelRequested 처리');
         if (!context.mounted) {
           return;
         }
@@ -180,6 +190,12 @@ class PaymentProvider extends ChangeNotifier {
 
       final finalOrder = await _watchOrderUntilTerminal(
         createdOrder.orderId,
+      );
+
+      totalStopwatch.stop();
+      _logger.info(
+        '⏱️ [PAYMENT] 결제 프로세스 완료 - 총 ${totalStopwatch.elapsedMilliseconds}ms, '
+        '최종 상태: ${finalOrder.status}',
       );
 
       if (!_isSameFlow(flowId) || _isCancellationInProgress) {
@@ -196,6 +212,10 @@ class PaymentProvider extends ChangeNotifier {
         cartItems: cartSnapshot,
       );
     } catch (e) {
+      totalStopwatch.stop();
+      _logger.severe(
+        '⏱️ [PAYMENT] 결제 프로세스 실패 - ${totalStopwatch.elapsedMilliseconds}ms',
+      );
       _logger.severe('❌ 결제 처리 실패: $e');
       _logger.severe('❌ 에러 타입: ${e.runtimeType}');
 
@@ -347,15 +367,24 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   Future<void> cancelPayment(BuildContext context) async {
+    _logger.info(
+      '🚫 [CANCEL] cancelPayment 호출 - '
+      'isCancellationInProgress: $_isCancellationInProgress, '
+      'currentOrderId: $_currentOrderId',
+    );
+
     if (_isCancellationInProgress) {
+      _logger.info('🚫 [CANCEL] 이미 취소 진행 중 - 무시');
       return;
     }
 
     if (_currentOrderId == null) {
       _cancelRequested = true;
-      _logger.info('🕒 주문 생성 응답 대기 중 - 생성 완료 후 취소 요청 예정');
+      _logger.info('🚫 [CANCEL] 주문 생성 대기 중 - cancelRequested = true');
       return;
     }
+
+    _logger.info('🚫 [CANCEL] _cancelCurrentOrder 호출 시작');
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -409,13 +438,40 @@ class PaymentProvider extends ChangeNotifier {
   Future<OrderStatusResponse> _watchOrderUntilTerminal(String orderId) async {
     final completer = Completer<OrderStatusResponse>();
     OrderStatusResponse? lastStatus;
+    final watchStopwatch = Stopwatch()..start();
+    String? previousStatus;
+    DateTime? previousStatusTime;
+
+    _logger.info('⏱️ [ORDER] 주문 상태 감시 시작 - orderId: $orderId');
 
     await _cancelOrderStatusSubscription();
     _orderStatusSubscription = _paymentService.watchOrderStatus(orderId).listen(
       (status) {
+        final now = DateTime.now();
+        if (previousStatus != null && previousStatusTime != null) {
+          final transitionMs = now.difference(previousStatusTime!).inMilliseconds;
+          _logger.info(
+            '⏱️ [ORDER] 상태 전이: $previousStatus → ${status.status} '
+            '(${transitionMs}ms)',
+          );
+        } else {
+          _logger.info(
+            '⏱️ [ORDER] 초기 상태 수신: ${status.status} '
+            '(${watchStopwatch.elapsedMilliseconds}ms)',
+          );
+        }
+        previousStatus = status.status;
+        previousStatusTime = now;
         lastStatus = status;
       },
       onDone: () {
+        watchStopwatch.stop();
+        _logger.info(
+          '⏱️ [ORDER] 주문 상태 감시 종료 - orderId: $orderId, '
+          '총 소요: ${watchStopwatch.elapsedMilliseconds}ms, '
+          '최종 상태: ${lastStatus?.status ?? "UNKNOWN"}',
+        );
+
         if (completer.isCompleted) {
           return;
         }
@@ -430,6 +486,10 @@ class PaymentProvider extends ChangeNotifier {
         );
       },
       onError: (Object e) {
+        watchStopwatch.stop();
+        _logger.warning(
+          '⏱️ [ORDER] 주문 상태 감시 에러 - ${watchStopwatch.elapsedMilliseconds}ms',
+        );
         if (!completer.isCompleted) {
           completer.completeError(e);
         }
@@ -574,13 +634,18 @@ class PaymentProvider extends ChangeNotifier {
     required int flowId,
   }) async {
     final orderId = _currentOrderId;
+    _logger.info(
+      '🚫 [CANCEL] _cancelCurrentOrder 진입 - orderId: $orderId',
+    );
     if (orderId == null) {
       _cancelRequested = true;
+      _logger.info('🚫 [CANCEL] orderId가 null - cancelRequested = true');
       return;
     }
 
     _isCancellationInProgress = true;
-    await _cancelOrderStatusSubscription();
+    // SSE 구독 취소는 백그라운드에서 처리 — cancel API를 먼저 호출
+    unawaited(_cancelOrderStatusSubscription());
 
     OrderStatusResponse cancelResponse;
     try {
@@ -597,7 +662,12 @@ class PaymentProvider extends ChangeNotifier {
       cancelResponse = await _paymentService.getOrderStatus(orderId);
     }
 
-    final finalStatus = cancelResponse.isTerminal
+    // 취소 API 응답이 CANCEL_REQUESTED이면 즉시 취소 완료로 처리 (SSE 대기 불필요)
+    final isCancelCompleted =
+        cancelResponse.status == OrderStatus.cancelRequested ||
+            cancelResponse.status == OrderStatus.cancelled;
+
+    final finalStatus = (cancelResponse.isTerminal || isCancelCompleted)
         ? cancelResponse
         : await _paymentService.watchOrderStatus(orderId).last;
 

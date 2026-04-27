@@ -55,8 +55,8 @@ class CategoryService {
       final categories = await _apiClient.get(
         ApiEndpoints.getItemCategories,
         (json) {
-          // 명세서 응답: { "itemCategories": ["BEVERAGE", "FOOD", "SNACK"] }
-          return (json['itemCategories'] as List).cast<String>();
+          // 명세서 응답: { "item_categories": ["BEVERAGE", "FOOD", "SNACK"] }
+          return (json['item_categories'] as List).cast<String>();
         },
         requiresAuth: false,
       );

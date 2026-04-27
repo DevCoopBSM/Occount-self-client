@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logging/logging.dart';
 import 'api_config.dart';
@@ -11,6 +12,8 @@ class ApiClient {
   final ApiConfig apiConfig;
   final KioskConfigService _kioskConfigService;
   final Logger _logger = Logger('ApiClient');
+
+  static const Duration _requestTimeout = Duration(seconds: 5);
 
   ApiClient({
     required this.client,
@@ -62,9 +65,15 @@ class ApiClient {
         includeKioskId: includeKioskId,
       );
 
+      final stopwatch = Stopwatch()..start();
       final response = await client.get(
         uri,
         headers: headers,
+      ).timeout(_requestTimeout);
+      stopwatch.stop();
+      _logger.info(
+        '⏱️ [GET] $endpoint - ${stopwatch.elapsedMilliseconds}ms '
+        '(status: ${response.statusCode})',
       );
 
       if (response.statusCode == 200) {
@@ -87,6 +96,10 @@ class ApiClient {
       );
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ GET 요청 타임아웃');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ GET 요청 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -103,9 +116,21 @@ class ApiClient {
         includeKioskId: includeKioskId,
       );
       request.headers.addAll(headers);
-      return client.send(request);
+
+      final stopwatch = Stopwatch()..start();
+      final response = await client.send(request).timeout(_requestTimeout);
+      stopwatch.stop();
+      _logger.info(
+        '⏱️ [SEND] ${request.url} - ${stopwatch.elapsedMilliseconds}ms',
+      );
+
+      return response;
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ 요청 전송 타임아웃');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ 요청 전송 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -132,21 +157,27 @@ class ApiClient {
       _logger.info('🚀 [HTTP POST] Headers: $headers');
       _logger.info('🚀 [HTTP POST] Body: ${jsonEncode(data)}');
 
+      final stopwatch = Stopwatch()..start();
       final response = data == null
           ? await client.post(
               uri,
               headers: headers,
-            )
+            ).timeout(_requestTimeout)
           : await client.post(
               uri,
               headers: headers,
               body: jsonEncode(data),
-            );
+            ).timeout(_requestTimeout);
+      stopwatch.stop();
 
       // 🔍 디버깅: 실제 HTTP 응답 로그
       _logger.info('📥 [HTTP RESPONSE] Status: ${response.statusCode}');
       _logger.info('📥 [HTTP RESPONSE] Headers: ${response.headers}');
       _logger.info('📥 [HTTP RESPONSE] Body: ${utf8.decode(response.bodyBytes)}');
+      _logger.info(
+        '⏱️ [POST] $endpoint - ${stopwatch.elapsedMilliseconds}ms '
+        '(status: ${response.statusCode})',
+      );
 
       if (successStatusCodes.contains(response.statusCode)) {
         // 빈 응답 처리
@@ -177,6 +208,10 @@ class ApiClient {
       throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ POST 요청 타임아웃: $endpoint');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
   }
@@ -198,15 +233,21 @@ class ApiClient {
       _logger.info('🚀 [LOGIN POST] Request Headers: $headers');
       _logger.info('🚀 [LOGIN POST] Request Body: ${jsonEncode(data)}');
 
+      final stopwatch = Stopwatch()..start();
       final response = await client.post(
         uri,
         headers: headers,
         body: jsonEncode(data),
-      );
+      ).timeout(_requestTimeout);
+      stopwatch.stop();
 
       _logger.info('📥 [LOGIN RESPONSE] Status: ${response.statusCode}');
       _logger.info('📥 [LOGIN RESPONSE] Response Headers: ${response.headers}');
       _logger.info('📥 [LOGIN RESPONSE] Response Body: ${utf8.decode(response.bodyBytes)}');
+      _logger.info(
+        '⏱️ [LOGIN] $endpoint - ${stopwatch.elapsedMilliseconds}ms '
+        '(status: ${response.statusCode})',
+      );
 
       if (response.statusCode == 201) {
         // 토큰은 Authorization 헤더에 "Bearer <token>" 형태로 담김
@@ -249,6 +290,10 @@ class ApiClient {
       throw ApiException.fromErrorCode(apiErrorCode, errorMessage);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ 로그인 요청 타임아웃');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ postForHeader 예외 (타입: ${e.runtimeType}): $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
@@ -266,10 +311,16 @@ class ApiClient {
       final isOrderEndpoint = path == '/orders' || path == '/payments/execute';
       final headers = await _getHeaders(includeKioskId: isOrderEndpoint);
 
+      final stopwatch = Stopwatch()..start();
       final response = await client.put(
         url,
         headers: headers,
         body: json.encode(body),
+      ).timeout(_requestTimeout);
+      stopwatch.stop();
+      _logger.info(
+        '⏱️ [PUT] $path - ${stopwatch.elapsedMilliseconds}ms '
+        '(status: ${response.statusCode})',
       );
 
       if (response.statusCode == 200) {
@@ -295,6 +346,10 @@ class ApiClient {
       );
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        _logger.severe('❌ PUT 요청 타임아웃: $path');
+        throw ApiException.fromErrorCode(ApiErrorCode.connectionTimeout);
+      }
       _logger.severe('❌ PUT 요청 에러: $e');
       throw ApiException.fromErrorCode(ApiErrorCode.serverError);
     }
