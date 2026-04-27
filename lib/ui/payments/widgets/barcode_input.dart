@@ -14,22 +14,47 @@ class BarcodeInput extends StatefulWidget {
   State<BarcodeInput> createState() => BarcodeInputState();
 }
 
-class BarcodeInputState extends State<BarcodeInput> {
+class BarcodeInputState extends State<BarcodeInput>
+    with WidgetsBindingObserver {
   final FocusNode barcodeFocus = FocusNode();
   final TextEditingController _barcodeController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    restoreBarcodeFocus();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      restoreBarcodeFocus();
+    }
+  }
+
+  void restoreBarcodeFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        FocusScope.of(context).requestFocus(barcodeFocus);
-      }
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(barcodeFocus);
+    });
+
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(barcodeFocus);
+    });
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(barcodeFocus);
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     barcodeFocus.dispose();
     _barcodeController.dispose();
     super.dispose();
@@ -60,7 +85,7 @@ class BarcodeInputState extends State<BarcodeInput> {
 
     if (mounted) {
       _barcodeController.clear();
-      FocusScope.of(context).requestFocus(barcodeFocus);
+      restoreBarcodeFocus();
     }
   }
 
@@ -83,6 +108,7 @@ class BarcodeInputState extends State<BarcodeInput> {
             ),
             child: TextFormField(
               controller: _barcodeController,
+              autofocus: true,
               focusNode: barcodeFocus,
               onFieldSubmitted: (value) {
                 if (value.isNotEmpty) {
@@ -123,11 +149,12 @@ class BarcodeInputState extends State<BarcodeInput> {
                         ),
                       ],
                     ),
-                    onTap: () {
-                      showDialog(
+                    onTap: () async {
+                      await showDialog(
                         context: context,
                         builder: (context) => const NonBarcodeDialog(),
                       );
+                      restoreBarcodeFocus();
                     },
                   ),
                 ),
@@ -149,11 +176,12 @@ class BarcodeInputState extends State<BarcodeInput> {
                         ),
                       ],
                     ),
-                    onTap: () {
-                      showDialog(
+                    onTap: () async {
+                      await showDialog(
                         context: context,
                         builder: (context) => const AllItemsDialog(),
                       );
+                      restoreBarcodeFocus();
                     },
                   ),
                 ),
