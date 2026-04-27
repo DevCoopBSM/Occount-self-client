@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-04-24
-**Commit:** fae39d1
+**Generated:** 2026-04-27
+**Commit:** f286133
 **Branch:** develop
 
 ## OVERVIEW
@@ -32,13 +32,18 @@ lib/
 |------|----------|-------|
 | Add API endpoint | `lib/api/api_endpoints.dart` + matching service | ApiClient handles auth headers |
 | Add new UI page | `lib/ui/<feature>/` | Follow Provider pattern for state |
-| Fix payment flow | `lib/provider/payment_provider.dart` (754 lines) | Largest file, complex state |
+| Fix payment flow | `lib/provider/payment_provider.dart` (824 lines) | Largest file, complex state |
 | Auth/login issues | `lib/provider/auth_provider.dart` + `lib/services/auth_service.dart` | Token in SharedPreferences |
+| Cart management | `lib/provider/auth_provider.dart` | Cart state lives in AuthProvider, shared with PaymentProvider |
+| Category browsing | `lib/provider/category_provider.dart` + `lib/services/category_service.dart` | Lazy-loaded per category |
+| Item lookup | `lib/services/item_service.dart` | Barcode + non-barcode item search with caching |
 | Add data model | `lib/models/` | Must have fromJson/toJson |
+| Add DTO | `lib/Dto/` | Uppercase dir — intentional, ask team before renaming |
 | Error handling | `lib/exception/api_exception.dart` | Server returns `{ "message": "ERROR_CODE" }` |
 | Kiosk configuration | `lib/services/kiosk_config_service.dart` + `lib/ui/setup/` | Setup checker for initial config |
 | Theme/styling | `lib/ui/_constant/theme/` | GmarketSans fonts, DevCoop colors |
-| SSE/streaming | `lib/services/event_service.dart` | Order status via SSE |
+| SSE/streaming | `lib/services/event_service.dart` | Order status via SSE (placeholder — commented out) |
+| CI/CD pipeline | `.gitlab-ci.yml` | GitLab CI, Windows runner, builds Windows + APK |
 
 ## CODE MAP
 
@@ -48,11 +53,21 @@ lib/
 | `AuthProvider` | provider | `lib/provider/auth_provider.dart` | Login state, user info, cart |
 | `PaymentProvider` | provider | `lib/provider/payment_provider.dart` | Payment flow orchestration |
 | `ItemProvider` | provider | `lib/provider/item_provider.dart` | Cart items, barcode lookup |
+| `CategoryProvider` | provider | `lib/provider/category_provider.dart` | Category data, per-category items |
+| `NavigationProvider` | provider | `lib/provider/navigation_provider.dart` | Navigation state |
+| `BottomNavigationProvider` | provider | `lib/provider/bottom_navigation_provider.dart` | Bottom nav index state |
+| `PinChangeProvider` | provider | `lib/provider/pin_change_provider.dart` | PIN change flow |
+| `CountProvider` | provider | `lib/provider/count_provider.dart` | Simple counter state |
 | `ApiClient` | class | `lib/api/api_client.dart` | HTTP client with auth interceptor |
 | `ApiConfig` | class | `lib/api/api_config.dart` | Reads API_HOST from dart-define |
 | `PaymentService` | service | `lib/services/payment_service.dart` | Order creation, payment execution |
 | `PaymentCalculationService` | service | `lib/services/payment_calculation_service.dart` | PAYMENT vs MIXED determination |
 | `KioskConfigService` | service | `lib/services/kiosk_config_service.dart` | Kiosk identity and config |
+| `AuthService` | service | `lib/services/auth_service.dart` | Login, token management, user info |
+| `ItemService` | service | `lib/services/item_service.dart` | Item lookup by barcode, caching |
+| `CategoryService` | service | `lib/services/category_service.dart` | Category and per-category item fetch |
+| `ChargeService` | service | `lib/services/charge_service.dart` | Charge item creation, local calculations |
+| `EventService` | service | `lib/services/event_service.dart` | Placeholder (commented out) |
 | `Home` | widget | `lib/ui/home/home.dart` | Main screen after auth |
 
 ## GIT CONVENTIONS
@@ -139,9 +154,17 @@ flutter pub get
 
 ## NOTES
 
-- `payment_provider.dart` (754 lines) is the largest and most complex file — payment flow has many edge cases
+- `payment_provider.dart` (824 lines) is the largest and most complex file — payment flow has many edge cases
 - `kiosk_config_page.dart` (493 lines) handles admin settings including WebSocket config
 - No `freezed` or `json_serializable` code generation active despite being in pubspec.yaml (commented out)
 - Test suite is minimal (3 test files) — covers payment service and two dialogs
 - `charge_service.dart` has no API dependency — handles local charge calculations
 - `count_provider.dart` exists but appears to be a simple counter state
+- `event_service.dart` is a placeholder — all implementation commented out
+- CI: GitLab CI (`.gitlab-ci.yml`) with Windows runner, builds Windows exe + APK using `--dart-define=DB_HOST`
+- Android release builds use debug signing (no release keystore in repo)
+- Cart state lives in `AuthProvider` — `PaymentProvider` reads cart via cross-provider access
+- PaymentProvider cross-depends on AuthProvider at runtime (not via DI, via `Provider.of`)
+- `PaymentCalculationService` determines payment type: `points >= total` → PAYMENT, else MIXED
+- `PaymentService.watchOrderStatus` supports both SSE and polling (config via `KioskConfigService.isSseModeEnabled`)
+- Flutter version in CI: 3.10.0; SDK constraint: `>=2.17.0 <4.0.0`
