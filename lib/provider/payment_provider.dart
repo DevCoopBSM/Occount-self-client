@@ -644,7 +644,8 @@ class PaymentProvider extends ChangeNotifier {
     }
 
     _isCancellationInProgress = true;
-    await _cancelOrderStatusSubscription();
+    // SSE 구독 취소는 백그라운드에서 처리 — cancel API를 먼저 호출
+    unawaited(_cancelOrderStatusSubscription());
 
     OrderStatusResponse cancelResponse;
     try {
