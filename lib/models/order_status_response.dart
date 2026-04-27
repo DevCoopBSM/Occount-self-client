@@ -69,7 +69,7 @@ class OrderStatusResponse {
 
   factory OrderStatusResponse.fromJson(Map<String, dynamic> json) {
     return OrderStatusResponse(
-      orderId: json['order_id'] as String? ?? '',
+      orderId: (json['order_id'] ?? '').toString(),
       status: json['status'] as String? ?? OrderStatus.failed,
       failureReason: json['failure_reason'] as String?,
     );
