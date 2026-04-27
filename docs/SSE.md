@@ -1,94 +1,114 @@
-SSE API 연결 가이드
+# 주문 상태 확인 SSE API 명세
 
-전체 주문 흐름
+기본 정보
 
-1. POST /api/v3/orders          → orderId 수신
-2. GET  /api/v3/orders/{orderId}/stream  → SSE 구독 시작
-3. SSE 이벤트 수신하며 상태 업데이트
-4. 최종 상태 이벤트 수신 시 스트림 자동 종료
+인증: X
 
-  ---                                                                                                                                                                                                                   
-1. 주문 생성
+API 정보
 
-POST /api/v3/orders
-
-Request Headers
-
-┌───────────────┬──────┬───────────────────────────────┐                                                                                                                                                              
-│     헤더      │ 필수 │             설명              │
-├───────────────┼──────┼───────────────────────────────┤                                                                                                                                                              
-│ Content-Type  │ ✓    │ application/json              │
-├───────────────┼──────┼───────────────────────────────┤
-│ X-Kiosk-Id    │ ✓    │ 키오스크 식별자               │
-├───────────────┼──────┼───────────────────────────────┤                                                                                                                                                              
-│ Authorization │ -    │ Bearer {token} (회원 주문 시) │
-└───────────────┴──────┴───────────────────────────────┘
-
-Response 202 Accepted                                                                                                                                                                                                 
-{               
-"orderId": "b05ca17c-c0e5-4be9-ab5f-36bdb8bcf7a8",
-"status": "PROCESSING",                           
-"failureReason": null                                                                                                                                                                                               
-}
-                                                                                                                                                                                                                        
----                                                                                                                                                                                                                   
-2. SSE 구독
+Endpoint & Request
 
 GET /api/v3/orders/{orderId}/stream
-Accept: text/event-stream
 
-인증: 불필요 (orderId가 있으면 누구나 구독 가능)
+Response (SSE)
 
-연결 즉시 현재 상태를 첫 이벤트로 수신, 이후 상태 변경마다 이벤트 전송. 최종 상태 도달 시 서버에서 스트림을 닫습니다.
-                  
----                                                                                                                                                                                                                   
-SSE 이벤트 포맷
+Response Headers
 
-event: PROCESSING
-data: {"orderId":"b05ca17c-...","status":"PROCESSING","failureReason":null}
+Content-Type: text/event-stream                                                                                                                                         
+Cache-Control: no-cache
+Connection: keep-alive
 
-event: COMPLETED
-data: {"orderId":"b05ca17c-...","status":"COMPLETED","failureReason":null}
+이벤트 프레임 포멧
 
-┌────────────────────┬───────────────┬──────────────────────────────────┐                                                                                                                                             
-│        필드        │     타입      │               설명               │
-├────────────────────┼───────────────┼──────────────────────────────────┤                                                                                                                                             
-│ event              │ string        │ 이벤트 타입 (status name과 동일) │
-├────────────────────┼───────────────┼──────────────────────────────────┤
-│ data.orderId       │ string        │ 주문 ID                          │                                                                                                                                             
-├────────────────────┼───────────────┼──────────────────────────────────┤
-│ data.status        │ string        │ 현재 주문 상태                   │                                                                                                                                             
-├────────────────────┼───────────────┼──────────────────────────────────┤                                                                                                                                             
-│ data.failureReason │ string | null │ 실패 사유 (실패 시에만 값 존재)  │
-└────────────────────┴───────────────┴──────────────────────────────────┘
-                  
----                                                                                                                                                                                                                   
-수신 가능한 이벤트 목록
+각 이벤트는 다음 프레임으로 전송됩니다. JSON 페이로드는 UTF-8 그대로(ensure_ascii=false) 직렬화됩니다.
 
-┌──────────────┬───────────────────────┬──────────────────┐
-│      event       │         의미          │ 스트림 종료 여부 │                                                                                                                                                       
-├──────────────────┼───────────────────────┼──────────────────┤
-│ PROCESSING       │ 처리 중      ┘        │ ❌               │                                                                                                                                                        
-├──────────────────┼───────────────────────┼──────────────────┤
-│ COMPLETED           │ 주문 완료             │ ✅               │                                                                                                                                                    ─
-├─────────────────────┼───────────────────────┼──────────────────┤
-│ FAILED              │ 주문 실패             │ ✅               │                                                                                                                                                     
-├─────────────────────┼───────────────────────┼──────────────────┤                                                                                                                                                    
-│ CANCELLED           │ 취소 완료             │ ✅               │
-├─────────────────────┼───────────────────────┼──────────────────┤                                                                                                                                                    
-│ COMPENSATING        │ 보상 트랜잭션 진행 중 │ ❌               │
-├─────────────────────┼───────────────────────┼──────────────────┤                                                                                                                                                    
-│ CANCEL_REQUESTED    │ 취소 요청됨           │ ❌               │
-├─────────────────────┼───────────────────────┼──────────────────┤                                                                                                                                                    
-│ TIMED_OUT           │ 타임아웃              │ ✅               │
-├─────────────────────┼───────────────────────┼──────────────────┤                                                                                                                                                    
-│ COMPENSATION_FAILED │ 보상 실패             │ ✅               │
-└─────────────────────┴───────────────────────┴──────────────────┘
+event: <event_type>
+data: <json payload>
 
-스트림 자동 종료: COMPLETED, FAILED, CANCELLED, TIMED_OUT, COMPENSATION_FAILED 수신 시 
+이벤트 타입
 
-주의사항
+event_type
 
-- EventSource는 기본적으로 에러 시 자동 재연결을 시도합니다. 최종 상태 수신 후에는 반드시 eventSource.close() 호출 필요
-- 스트림 종료 후 재연결하면 현재 상태를 첫 이벤트로 다시 수신합니다
-- failureReason은 FAILED, COMPENSATION_FAILED 상태일 때만 값이 있습니다 
+payload 필드
+
+발생 시점 / 보장
+
+order_accepted
+
+
+
+주문 생성 직후 또는 PROCESSING 중
+
+payment_requested
+
+
+
+재고 확인 완료 후 결제 요청 시
+
+completed
+
+
+
+주문 완료
+
+failed
+
+failure_reason
+
+재고 부족·결제 실패 등 
+
+cancel_requested
+
+
+
+취소 요청 접수
+
+cancelled
+
+
+
+취소 완료
+
+timed_out
+
+failure_reason
+
+처리 시간 초과
+
+이벤트 발생 순서 보장
+
+order_accepted
+  → payment_requested
+  → completed | failed | timed_out
+
+order_accepted
+  → payment_requested
+  → cancel_requested
+  → cancelled | failed | timed_out
+
+SSE 응답 예시 - 주문 완료
+
+event: order_accepted
+data: {}
+event: payment_requested
+data: {}
+event: completed
+data: {}
+
+SSE 응답 예시 - 주문 실패
+
+event: order_accepted
+data: {}
+event: failed
+data: {"failure_reason": "재고 부족"}
+
+SSE 응답 예시 - 주문 취소
+
+event: order_accepted
+data: {}
+event: payment_requested
+data: {}
+event: cancel_requested
+data: {}
+event: cancelled
+data: {}
