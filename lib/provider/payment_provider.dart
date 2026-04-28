@@ -608,10 +608,13 @@ class PaymentProvider extends ChangeNotifier {
       return;
     }
 
-    await showDialog(
+    await showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => PaymentResultDialog(
+      barrierColor: Colors.black54,
+      transitionDuration: Duration.zero,
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          PaymentResultDialog(
         response: result,
         isSuccess: true,
         shouldReturnToHome: true,
@@ -721,10 +724,13 @@ class PaymentProvider extends ChangeNotifier {
                 ? ApiErrorCode.paymentTimeout.code
                 : ApiErrorCode.paymentFailed.code;
 
-    await showDialog(
+    await showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => PaymentResultDialog(
+      barrierColor: Colors.black54,
+      transitionDuration: Duration.zero,
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          PaymentResultDialog(
         errorMessage: errorMessage,
         errorCode: errorCode,
         isSuccess: false,
@@ -782,10 +788,13 @@ class PaymentProvider extends ChangeNotifier {
       shouldReturnToHome = true;
     }
 
-    await showDialog(
+    await showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => PaymentResultDialog(
+      barrierColor: Colors.black54,
+      transitionDuration: Duration.zero,
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          PaymentResultDialog(
         errorMessage: errorMessage,
         errorCode: errorCode,
         isSuccess: false,
