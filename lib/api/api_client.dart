@@ -249,7 +249,7 @@ class ApiClient {
         '(status: ${response.statusCode})',
       );
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         // 토큰은 Authorization 헤더에 "Bearer <token>" 형태로 담김
         // HTTP 헤더는 case-insensitive이므로 소문자와 대문자 모두 확인
         final authHeader = response.headers['authorization'] ??
