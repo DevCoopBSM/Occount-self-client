@@ -29,6 +29,7 @@ class PaymentProvider extends ChangeNotifier {
   final List<NonBarcodeItemResponse> _nonBarcodeItems = [];
   final List<ItemResponse> _allItems = [];
   bool _isProcessingDialogVisible = false;
+  bool _isPaymentInProgress = false;
   String? _currentOrderId;
   bool _cancelRequested = false;
   bool _isCancellationInProgress = false;
@@ -42,6 +43,14 @@ class PaymentProvider extends ChangeNotifier {
   List<NonBarcodeItemResponse> get nonBarcodeItems => _nonBarcodeItems;
   List<ItemResponse> get allItems => _allItems;
   int get chargeAmount => _chargeAmount;
+
+  /// 결제 요청이 진행 중인지 여부.
+  ///
+  /// 결제 요청을 보낸 직후(아직 응답이 도착하지 않은 찰나의 시간 포함)부터
+  /// 처리가 완전히 종료될 때까지 true. UI는 이 값을 이용해 사용자 입력을
+  /// 차단(hidden 상태로 만들지 않고 터치만 막음)하여 결제 도중 다른 조작이
+  /// 꼬이는 것을 방지한다.
+  bool get isPaymentInProgress => _isPaymentInProgress;
 
   void addChargeAmount(int amount) {
     _chargeAmount += amount;
@@ -122,9 +131,11 @@ class PaymentProvider extends ChangeNotifier {
     authProvider.pauseSessionTimer();
 
     _isProcessingDialogVisible = true;
+    _isPaymentInProgress = true;
     _currentOrderId = null;
     _cancelRequested = false;
     _isCancellationInProgress = false;
+    notifyListeners();
 
     _logger.info('⏱️ [PAYMENT] 결제 프로세스 시작 - 상품 ${cartSnapshot.length}개');
 
@@ -449,7 +460,8 @@ class PaymentProvider extends ChangeNotifier {
       (status) {
         final now = DateTime.now();
         if (previousStatus != null && previousStatusTime != null) {
-          final transitionMs = now.difference(previousStatusTime!).inMilliseconds;
+          final transitionMs =
+              now.difference(previousStatusTime!).inMilliseconds;
           _logger.info(
             '⏱️ [ORDER] 상태 전이: $previousStatus → ${status.status} '
             '(${transitionMs}ms)',
@@ -500,11 +512,16 @@ class PaymentProvider extends ChangeNotifier {
   }
 
   void _resetPaymentFlowState() {
+    final wasInProgress = _isPaymentInProgress;
     _isProcessingDialogVisible = false;
+    _isPaymentInProgress = false;
     _currentOrderId = null;
     _cancelRequested = false;
     _isCancellationInProgress = false;
     unawaited(_cancelOrderStatusSubscription());
+    if (wasInProgress) {
+      notifyListeners();
+    }
   }
 
   Future<void> _cancelOrderStatusSubscription() async {
