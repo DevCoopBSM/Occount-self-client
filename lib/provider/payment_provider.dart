@@ -755,16 +755,12 @@ class PaymentProvider extends ChangeNotifier {
       ),
     );
 
-    if (context.mounted) {
-      if (isCancelled) {
-        Navigator.of(context).pop();
-      } else {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/',
-          (route) => false,
-        );
-      }
+    if (context.mounted && !isCancelled) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/',
+        (route) => false,
+      );
     }
   }
 
