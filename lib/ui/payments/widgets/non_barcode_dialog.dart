@@ -147,7 +147,7 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
 
                   final categories = [
                     '전체',
-                    ...getUniqueCategories(paymentProvider.nonBarcodeItems)
+                    ...getUniqueCategories(paymentProvider.nonBarcodeItems),
                   ];
 
                   final filteredItems = filterItemsByCategory(
@@ -208,14 +208,15 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
                                               style: DevCoopTextStyle.bold_20,
                                               overflow: TextOverflow.ellipsis,
                                             ),
-                                            Text(
-                                              item.itemCategory,
-                                              style: DevCoopTextStyle
-                                                  .medium_20
-                                                  .copyWith(
-                                                color: Colors.black54,
+                                            if (item.itemCategory.isNotEmpty)
+                                              Text(
+                                                item.itemCategory,
+                                                style: DevCoopTextStyle
+                                                    .medium_20
+                                                    .copyWith(
+                                                  color: Colors.black54,
+                                                ),
                                               ),
-                                            ),
                                           ],
                                         ),
                                       ),
@@ -251,7 +252,12 @@ class _NonBarcodeDialogState extends State<NonBarcodeDialog> {
   }
 
   List<String> getUniqueCategories(List<NonBarcodeItemResponse> items) {
-    return items.map((e) => e.itemCategory).toSet().toList()..sort();
+    return items
+        .where((item) => item.itemCategory.isNotEmpty)
+        .map((e) => e.itemCategory)
+        .toSet()
+        .toList()
+      ..sort();
   }
 
   List<NonBarcodeItemResponse> filterItemsByCategory(

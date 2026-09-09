@@ -324,8 +324,36 @@ class PaymentProvider extends ChangeNotifier {
       notifyListeners();
 
       final items = await _itemService.getNonBarcodeItems();
+
+      // /items/without-barcode 응답에는 category가 없으므로, /items(전체 상품) 응답에서
+      // itemId 기준으로 category를 보강한다. /items 조회가 실패해도 원래 목록은 그대로 사용.
+      final categoryById = <int, String>{};
+      try {
+        final allItems = await _itemService.getAllItems();
+        for (final item in allItems) {
+          if (item.itemCategory.isNotEmpty) {
+            categoryById[item.itemId] = item.itemCategory;
+          }
+        }
+      } catch (e) {
+        _logger.warning('바코드 없는 상품 카테고리 보강 실패: $e');
+      }
+
       _nonBarcodeItems.clear();
-      _nonBarcodeItems.addAll(items);
+      _nonBarcodeItems.addAll(items.map((item) {
+        final category = categoryById[item.itemId];
+        if (category == null || item.itemCategory.isNotEmpty) {
+          return item;
+        }
+        return NonBarcodeItemResponse(
+          itemId: item.itemId,
+          itemCode: item.itemCode,
+          itemName: item.itemName,
+          itemPrice: item.itemPrice,
+          eventStatus: item.eventStatus,
+          itemCategory: category,
+        );
+      }));
     } catch (e) {
       _error = '바코드 없는 상품 목록을 불러오는데 실패했습니다';
       _logger.severe('바코드 없는 상품 로드 실패: $e');
