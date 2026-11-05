@@ -335,12 +335,12 @@ class _KioskConfigPageState extends State<KioskConfigPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '비회원 결제 모드',
+                                '비회원 모드로 시작',
                                 style: DevCoopTextStyle.bold_20,
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '활성화하면 로그인 화면 없이 비회원 결제 화면으로 바로 진입합니다.',
+                                '활성화하면 비회원 결제 화면으로 시작합니다. 화면 왼쪽 하단 토글로 언제든 회원/비회원을 전환할 수 있습니다.',
                                 style: DevCoopTextStyle.medium_20.copyWith(
                                   color: Colors.grey.shade600,
                                   fontSize: 14,

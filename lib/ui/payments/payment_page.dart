@@ -8,6 +8,7 @@ import 'widgets/payment_item_header.dart';
 import 'widgets/payment_action_buttons.dart';
 import 'widgets/payment_summary.dart';
 import 'widgets/barcode_input.dart';
+import '../components/member_mode_toggle.dart';
 
 class PaymentPage extends StatefulWidget {
   const PaymentPage({Key? key}) : super(key: key);
@@ -62,32 +63,43 @@ class _PaymentPageState extends State<PaymentPage> {
         absorbing: isPaymentInProgress,
         child: Scaffold(
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                children: [
-                  PaymentHeader(
-                    userInfo: authProvider.userInfo,
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      PaymentHeader(
+                        userInfo: authProvider.userInfo,
+                      ),
+                      const SizedBox(height: 20),
+                      BarcodeInput(key: _barcodeInputKey),
+                      const SizedBox(height: 10),
+                      const PaymentItemHeader(),
+                      const SizedBox(height: 10),
+                      const Expanded(
+                        child: PaymentItemList(),
+                      ),
+                      const SizedBox(height: 20),
+                      if (authProvider.cartItems.isNotEmpty) ...[
+                        PaymentSummary(
+                          currentPoints: authProvider.userInfo.userPoint,
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                      const PaymentActionButtons(),
+                      const SizedBox(height: 20),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  BarcodeInput(key: _barcodeInputKey),
-                  const SizedBox(height: 10),
-                  const PaymentItemHeader(),
-                  const SizedBox(height: 10),
-                  const Expanded(
-                    child: PaymentItemList(),
+                ),
+                // 로그인한 회원은 "홈으로" 버튼으로 나가므로 비회원일 때만 노출
+                if (authProvider.isGuestMode)
+                  const Positioned(
+                    left: 20,
+                    bottom: 20,
+                    child: MemberModeToggle(),
                   ),
-                  const SizedBox(height: 20),
-                  if (authProvider.cartItems.isNotEmpty) ...[
-                    PaymentSummary(
-                      currentPoints: authProvider.userInfo.userPoint,
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                  const PaymentActionButtons(),
-                  const SizedBox(height: 20),
-                ],
-              ),
+              ],
             ),
           ),
         ),
