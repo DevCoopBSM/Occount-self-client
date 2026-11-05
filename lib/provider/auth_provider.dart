@@ -457,6 +457,20 @@ class AuthProvider with ChangeNotifier {
     _activateGuestMode();
   }
 
+  /// 비회원 → 회원(학생증 로그인) 화면으로 전환. 키오스크 기본 모드 설정과 무관하게 동작한다.
+  void switchToMemberMode() {
+    _cancelSessionTimer();
+    _resetPrefetchedLogin();
+    _isGuestMode = false;
+    _isLoggedIn = false;
+    _isSessionExpired = false;
+    _error = null;
+    _cartItems.clear();
+    _itemService.clearItemCache();
+    _userInfo = _emptyUserInfo;
+    notifyListeners();
+  }
+
   void setGuestCheckoutOnlyEnabled(bool enabled) {
     _isGuestCheckoutOnlyEnabled = enabled;
 
