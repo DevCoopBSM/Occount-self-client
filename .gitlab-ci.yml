@@ -38,8 +38,8 @@ build:
     - kiosk
   script:
     - flutter config --enable-windows-desktop
-    - flutter build windows --release --dart-define=DB_HOST=$env:DB_HOST
-    - flutter build apk --release --dart-define=DB_HOST=$env:DB_HOST
+    - flutter build windows --release --dart-define=API_HOST=$env:API_HOST
+    - flutter build apk --release --dart-define=API_HOST=$env:API_HOST
   artifacts:
     paths:
       - build/windows/x64/runner/Release

@@ -161,7 +161,7 @@ flutter pub get
 - `charge_service.dart` has no API dependency — handles local charge calculations
 - `count_provider.dart` exists but appears to be a simple counter state
 - `event_service.dart` is a placeholder — all implementation commented out
-- CI: GitLab CI (`.gitlab-ci.yml`) with Windows runner, builds Windows exe + APK using `--dart-define=DB_HOST`
+- CI: GitLab CI (`.gitlab-ci.yml`) with Windows runner, builds Windows exe + APK using `--dart-define=API_HOST`
 - Android release builds use debug signing (no release keystore in repo)
 - Cart state lives in `AuthProvider` — `PaymentProvider` reads cart via cross-provider access
 - PaymentProvider cross-depends on AuthProvider at runtime (not via DI, via `Provider.of`)
