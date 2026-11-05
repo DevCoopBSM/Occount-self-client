@@ -5,7 +5,7 @@ import '../_constant/theme/devcoop_text_style.dart';
 import '../_constant/theme/devcoop_colors.dart';
 import 'package:provider/provider.dart';
 import '../../provider/auth_provider.dart';
-import '../../services/kiosk_config_service.dart';
+import '../components/member_mode_toggle.dart';
 class BarcodeScanPage extends StatefulWidget {
   const BarcodeScanPage({Key? key}) : super(key: key);
 
@@ -18,7 +18,6 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   TextEditingController _codeNumberController = TextEditingController();
   final FocusNode _barcodeFocus = FocusNode();
-  bool _guestModeEnabled = false;
 
   @override
   void initState() {
@@ -33,7 +32,6 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
         if (!authProvider.isLoggedIn) {
           _refreshContent();
         }
-        _loadGuestModeSetting();
       }
     });
   }
@@ -56,14 +54,6 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
         FocusScope.of(context).requestFocus(_barcodeFocus);
       });
     });
-  }
-
-  Future<void> _loadGuestModeSetting() async {
-    final kioskConfigService = context.read<KioskConfigService>();
-    final enabled = await kioskConfigService.isGuestModeEnabled();
-    if (mounted) {
-      setState(() => _guestModeEnabled = enabled);
-    }
   }
 
   void _handleSubmit() {
@@ -96,7 +86,10 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
           onPopInvokedWithResult: (bool didPop, Object? result) async {
             FocusScope.of(context).requestFocus(_barcodeFocus);
           },
-          child: SingleChildScrollView(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+          SingleChildScrollView(
             child: Center(
               child: Container(
                 margin:
@@ -165,26 +158,6 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                                   text: '로그인',
                                 onTap: _handleSubmit,
                               ),
-                              if (_guestModeEnabled) ...[
-                                const SizedBox(width: 40),
-                                mainTextButton(
-                                  text: '비회원',
-                                  onTap: () {
-                                    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                                    authProvider.enableGuestMode();
-
-                                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                                      if (mounted) {
-                                        Navigator.pushNamedAndRemoveUntil(
-                                          context,
-                                          '/',
-                                          (route) => false,
-                                        );
-                                      }
-                                    });
-                                  },
-                                ),
-                              ],
                             ],
                           )
                         ],
@@ -194,6 +167,13 @@ class _BarcodeScanPageState extends State<BarcodeScanPage>
                 ),
               )
             ),
+          ),
+              const Positioned(
+                left: 20,
+                bottom: 20,
+                child: MemberModeToggle(),
+              ),
+            ],
           ),
         ),
        );
